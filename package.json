@@ -1,0 +1,16 @@
+{
+  "name": "risala-team-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Team website, admin panel and cover generator (React + Express + SQL Server)",
+  "scripts": {
+    "setup": "npm install && npm --prefix server install && npm --prefix client install && node server/scripts/make-env.js",
+    "db:init": "node server/scripts/init-db.js",
+    "dev": "concurrently -n api,web -c green,blue \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

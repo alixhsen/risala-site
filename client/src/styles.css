@@ -219,7 +219,7 @@ textarea { min-height: 120px; resize: vertical; line-height: 1.8; }
   padding: 5px 12px; border-radius: 999px;
   background: var(--gold); color: var(--ink);
   font-size: 12px; font-weight: 900; line-height: 1.4; box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.3);
-  /* As a grid item (e.g. in .mission-hero-overlay) this stops it stretching full width. */
+  /* As a grid item (e.g. in .pd-head) this stops it stretching full width. */
   justify-self: start; align-self: start; width: fit-content;
 }
 .type-badge {
@@ -660,7 +660,11 @@ main { min-height: 60vh; }
 @media (max-width: 639px) { .mission-row { grid-template-columns: auto 80px minmax(0, 1fr) auto; gap: 12px; } .mission-row-thumb { width: 80px; height: 60px; } }
 
 /* ---------- 9c. Team: roster cards ---------- */
-.team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+/* A single, roomy column on phones - a two-up grid left three-word Arabic
+   names wrapping onto two lines and crowding the role text right under
+   them. One breakpoint later for each step after that. */
+.team-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 480px) { .team-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 768px) { .team-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; } }
 @media (min-width: 1024px) { .team-grid { grid-template-columns: repeat(4, 1fr); gap: 24px; } }
 .team-group + .team-group { margin-top: 56px; }
@@ -682,69 +686,84 @@ main { min-height: 60vh; }
   content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background: linear-gradient(to top, rgba(11, 36, 21, 0.92) 0%, rgba(11, 36, 21, 0.35) 40%, rgba(11, 36, 21, 0) 60%);
 }
-.roster-info { position: absolute; z-index: 2; inset-inline: 0; bottom: 0; padding: 18px 18px 20px; color: #fff; transition: transform 0.45s var(--ease); }
+.roster-info { position: absolute; z-index: 2; inset-inline: 0; bottom: 0; padding: 16px 16px 18px; color: #fff; transition: transform 0.45s var(--ease); }
 .roster-bar { display: block; width: 28px; height: 3px; margin-bottom: 10px; border-radius: 999px; background: var(--gold); transition: width 0.45s var(--ease); }
 .roster-card:hover .roster-bar { width: 52px; }
-.roster-info h3 { color: #fff; font-size: 17px; font-weight: 900; line-height: 1.4; }
-.roster-info p { margin: 2px 0 0; color: #bfd6c6; font-size: 13px; font-weight: 700; }
+/* Capped at two lines (three-word names are common) and the role at one, so
+   a long name never crowds the role text or spills past the card edge -
+   the full name is always still on the dedicated team page/photo alt text. */
+.roster-info h3 {
+  color: #fff; font-size: clamp(14.5px, 3.6vw + 1px, 17px); font-weight: 900; line-height: 1.32;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.roster-info p {
+  margin: 4px 0 0; color: #bfd6c6; font-size: 12.5px; font-weight: 700; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
+}
 @media (prefers-reduced-motion: reduce) { .roster-card, .roster-photo img, .roster-bar { transition: none; } }
 
-/* ---------- 9d. Mission info: detail page ---------- */
-/* A frosted pill rather than plain text+arrow - reads as a clear nav
-   affordance against a photo of any brightness. */
-.mi-back {
-  display: inline-flex; align-items: center; gap: 8px; justify-self: start; margin-bottom: 4px;
-  padding: 7px 16px 7px 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); backdrop-filter: blur(6px);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); color: #fff; font-size: 13.5px; font-weight: 800;
-  transition: background 0.2s, color 0.2s;
-}
-.mi-back:hover { background: rgba(255, 255, 255, 0.2); color: var(--gold-light); }
+/* ---------- 9d. Post detail page (pd-*) ---------- */
+.pd-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 28px 0; }
+.pd-back { display: inline-flex; align-items: center; gap: 8px; color: var(--brand-link); font-weight: 900; font-size: 14px; }
+.pd-back:hover { text-decoration: underline; text-underline-offset: 4px; }
+.pd-pinned { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; border-radius: 999px; background: var(--brand-tint); color: var(--brand-link); font-size: 12.5px; font-weight: 900; }
 
-.mi-facts {
-  position: relative; z-index: 3; display: grid; grid-template-columns: 1fr; gap: 1px;
-  margin-top: -48px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r-card);
-  overflow: hidden; box-shadow: 0 24px 50px -28px rgba(11, 36, 21, 0.45);
-}
-@media (min-width: 768px) { .mi-facts { grid-template-columns: repeat(3, 1fr); } }
-.mi-fact { display: flex; align-items: center; gap: 14px; padding: 20px 24px; background: var(--surface); transition: background 0.2s; }
-.mi-fact:hover { background: var(--surface-2); }
-.mi-fact-icon {
-  width: 46px; height: 46px; flex: none; display: grid; place-items: center; border-radius: 14px;
-  background: var(--brand-tint); color: var(--brand-link);
-}
-.mi-fact small { display: block; color: var(--ink-3); font-size: 12px; font-weight: 800; }
-.mi-fact strong { display: block; color: var(--ink); font-size: 16px; font-weight: 900; line-height: 1.5; }
+.pd-head { padding-block: 18px 28px; display: grid; gap: 14px; max-width: 880px; }
+/* 5vw + 10px actually ramps between phone and tablet widths, instead of the
+   old 4vw which stayed pinned near its floor across that whole range. */
+.pd-head h1 { font-size: clamp(24px, 5vw + 10px, 44px); line-height: 1.28; color: var(--green-900); }
+/* A fixed two-column grid on phones, so an odd chip out never sits alone as
+   a half-width orphan - it spans the full row instead. From tablet width up
+   there's room for all of them in one natural, content-sized row. */
+.pd-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px; }
+.pd-meta-item:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 560px) { .pd-meta { display: flex; flex-wrap: wrap; } }
+.pd-meta-item { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.pd-meta-item > svg { flex: none; color: var(--brand-link); }
+.pd-meta-text { display: grid; line-height: 1.3; }
+.pd-meta-text small { color: var(--ink-3); font-size: 11px; font-weight: 800; }
+.pd-meta-text strong { color: var(--ink); font-size: 14px; font-weight: 900; }
+
+/* The cover photo is a plain, framed showcase - nothing is ever printed on
+   top of it, so it needs no darkening or cropping bias to stay legible. A
+   fixed aspect ratio (rather than a vh-based height) means it scales
+   predictably and shows generously on wide desktop windows. */
+.pd-cover { position: relative; overflow: hidden; border-radius: var(--r-card); background: var(--green-950); aspect-ratio: 3 / 2; box-shadow: var(--shadow-card); }
+@media (min-width: 640px) { .pd-cover { aspect-ratio: 2 / 1; } }
+@media (min-width: 1024px) { .pd-cover { aspect-ratio: 2.6 / 1; } }
+.pd-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.pd-cover.no-cover { display: grid; place-items: center; background: radial-gradient(120% 120% at 50% 20%, var(--green-900), var(--green-950)); }
+.pd-cover-icon { color: rgba(255, 255, 255, 0.14); }
 
 /* Mobile: a single column in DOM order - content, then the response crew,
    then related posts, so readers meet the crew before being steered to
    other missions. Desktop: the crew becomes a sticky sidebar spanning both
    the content and related rows, so a short write-up never leaves a dead gap
    below a taller sidebar. */
-.mi-body { display: grid; gap: 40px; padding-block: 56px; grid-template-areas: "content" "crew" "related"; }
-.mi-main { grid-area: content; display: grid; gap: 18px; }
-.mi-main .prose { max-width: none; }
-.mi-crew { grid-area: crew; }
-.mi-related { grid-area: related; padding-top: 32px; border-top: 1px solid var(--line); }
+.pd-body { display: grid; gap: 40px; padding-block: 48px; grid-template-areas: "content" "crew" "related"; }
+.pd-main { grid-area: content; display: grid; gap: 20px; }
+.pd-main .prose { max-width: none; }
+.pd-related { grid-area: related; padding-top: 32px; border-top: 1px solid var(--line); }
 @media (min-width: 1024px) {
-  .mi-body {
+  .pd-body {
     grid-template-columns: minmax(0, 1fr) 360px;
     grid-template-areas: "content crew" "related crew";
     gap: 64px; align-items: start;
   }
 }
-.mi-crew { display: grid; gap: 18px; padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
-@media (min-width: 1024px) { .mi-crew { position: sticky; top: calc(var(--header-h) + 24px); } }
-.mi-crew h2 { font-size: 20px; }
-.mi-crew-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-.mi-crew-card { display: grid; justify-items: center; gap: 8px; padding: 14px 8px; text-align: center; border-radius: 16px; background: var(--surface-2); transition: background 0.25s, transform 0.25s var(--ease); }
-.mi-crew-card:hover { background: var(--brand-tint); transform: translateY(-2px); }
-.mi-crew-photo {
+.pd-aside { grid-area: crew; display: grid; gap: 18px; padding: 26px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
+@media (min-width: 1024px) { .pd-aside { position: sticky; top: calc(var(--header-h) + 24px); } }
+.pd-aside h2 { font-size: 20px; }
+.pd-crew-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.pd-crew-card { display: grid; justify-items: center; gap: 8px; padding: 14px 8px; text-align: center; border-radius: 16px; background: var(--surface-2); transition: background 0.25s, transform 0.25s var(--ease); }
+.pd-crew-card:hover { background: var(--brand-tint); transform: translateY(-2px); }
+.pd-crew-photo {
   width: 64px; height: 64px; display: grid; place-items: center; overflow: hidden; border-radius: 999px;
   background: var(--brand-tint); color: var(--brand-link); font-size: 22px; font-weight: 900;
   box-shadow: 0 0 0 2px var(--gold);
 }
-.mi-crew-photo img { width: 100%; height: 100%; object-fit: cover; }
-.mi-crew-name { color: var(--ink); font-size: 14px; font-weight: 900; line-height: 1.4; }
+.pd-crew-photo img { width: 100%; height: 100%; object-fit: cover; }
+.pd-crew-name { color: var(--ink); font-size: 14px; font-weight: 900; line-height: 1.4; }
 
 /* ---------- 9e. Home: team band ---------- */
 .team-band { position: relative; overflow: hidden; background: var(--green-950); color: #fff; padding-block: 64px; }
@@ -769,7 +788,10 @@ main { min-height: 60vh; }
   mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
 .team-band-grid::-webkit-scrollbar { display: none; }
-.team-band .roster-card { flex: none; width: clamp(150px, 19vw, 200px); }
+/* A higher floor than a plain percentage would give on phones - 19vw stayed
+   pinned near its old 150px floor across nearly the whole mobile range,
+   which was too narrow for a two- or three-word name beside its role. */
+.team-band .roster-card { flex: none; width: clamp(190px, 19vw, 220px); }
 @media (min-width: 768px) { .team-band-grid { gap: 20px; } }
 .team-band .roster-card { background: var(--green-900); }
 .team-band .roster-card:hover { box-shadow: 0 30px 50px -24px rgba(0, 0, 0, 0.6); }
@@ -866,8 +888,11 @@ main { min-height: 60vh; }
 .mlist-empty-icon { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 16px; background: var(--brand-tint); color: var(--brand-link); }
 
 /* ---------- 9h. About page ---------- */
-.about-intro { display: grid; gap: 48px; align-items: center; }
-@media (min-width: 1024px) { .about-intro { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 72px; } }
+/* Just the identity (logo + name) above the intro text now - no portrait
+   photo beside it, so this is a single readable column, not a two-column
+   grid. */
+.about-intro { display: grid; }
+.about-intro-text { max-width: 760px; }
 .about-identity { display: flex; align-items: center; gap: 16px; padding-bottom: 22px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
 .about-logo { width: 72px; height: 72px; flex: none; display: grid; place-items: center; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px var(--gold), 0 0 0 6px rgba(197, 160, 89, 0.2); overflow: hidden; }
 .about-logo img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
@@ -876,11 +901,6 @@ main { min-height: 60vh; }
 .about-identity-line { color: var(--ink-3); font-size: 14px; font-weight: 700; }
 .about-lead { color: var(--ink); font-size: clamp(18px, 2vw, 21px); font-weight: 800; line-height: 1.9; }
 .about-body { color: var(--ink-3); font-size: 16px; line-height: 2; }
-
-.about-arch { position: relative; }
-.about-arch::before { content: ""; position: absolute; inset: -14px -14px 14px 14px; border: 1px solid var(--gold); border-radius: 999px 999px 24px 24px; opacity: 0.6; }
-.about-arch-frame { position: relative; z-index: 1; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 999px 999px 18px 18px; background: var(--green-900); box-shadow: var(--shadow-soft); }
-.about-arch-frame img { width: 100%; height: 100%; object-fit: cover; object-position: center 35%; }
 
 .about-stats { margin-top: 0; }
 .about-data-note { margin: 14px 0 0; text-align: center; color: var(--ink-3); font-size: 13px; font-weight: 700; }
@@ -1173,6 +1193,24 @@ main { min-height: 60vh; }
 .seg-cats button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--ink-2); font-size: 14px; font-weight: 900; cursor: pointer; transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
 .seg-cats button.on { background: var(--surface); color: var(--brand-strong); box-shadow: var(--shadow-card); }
 .editor-gen { display: grid; gap: 14px; padding: 16px; border: 1px dashed var(--line-strong); border-radius: 16px; background: var(--surface-2); }
+
+/* Two auto-generated social images, side by side on a dark "stage" card -
+   the same gradient treatment as the manual generator's preview, so a
+   generated design always reads as a finished product, not a form field. */
+.social-pair { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (min-width: 640px) { .social-pair { grid-template-columns: repeat(2, 1fr); } }
+.social-card {
+  display: grid; gap: 12px; padding: 14px; margin: 0;
+  background: linear-gradient(180deg, #14351f 0%, var(--green-950) 100%);
+  border-radius: 20px; box-shadow: var(--shadow-card);
+}
+.social-card-canvas { border-radius: 14px; overflow: hidden; background: rgba(255, 255, 255, 0.06); }
+.social-card canvas { display: block; width: 100%; height: auto; aspect-ratio: 1080 / 1350; }
+.social-card figcaption { display: grid; gap: 10px; color: #fff; }
+.social-card figcaption strong { font-size: 14px; }
+.social-card figcaption span { font-size: 12.5px; color: rgba(255, 255, 255, 0.7); line-height: 1.6; }
+.social-card .btn.outline { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.35); width: fit-content; }
+.social-card .btn.outline:hover { background: rgba(255, 255, 255, 0.1); }
 
 .editor-side { display: grid; gap: 14px; }
 .preview-card { padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-card); }
@@ -1493,22 +1531,42 @@ main { min-height: 60vh; }
 }
 
 /* ---------- 10. Services, feature, quote, stats ---------- */
-.service-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.service-grid { display: grid; grid-template-columns: 1fr; gap: 24px; }
 @media (min-width: 640px) { .service-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .service-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1024px) { .service-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* A big ghost number watermarks each card (its z-index sits under the icon
+   and copy), a gradient icon tile lifts and tilts on hover, and a gold
+   underline grows in - a richer, more deliberate treatment than a flat
+   bordered box. */
 .service-card {
-  display: grid; align-content: start; gap: 12px; padding: 28px 24px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card);
-  transition: transform 0.35s var(--ease), box-shadow 0.35s var(--ease), border-color 0.35s;
+  position: relative; overflow: hidden; isolation: isolate; display: grid; align-content: start; gap: 14px;
+  padding: 36px 28px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+  transition: transform 0.4s var(--ease), box-shadow 0.4s var(--ease), border-color 0.4s;
 }
-.service-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); border-color: rgba(34, 116, 58, 0.25); }
+.service-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-hover); border-color: transparent; }
+.service-card::after {
+  content: ""; position: absolute; inset-inline-start: 28px; bottom: 0; height: 3px; width: 28px;
+  border-radius: 999px; background: var(--gold); transition: width 0.4s var(--ease);
+}
+.service-card:hover::after { width: 64px; }
+
+.service-num {
+  position: absolute; z-index: -1; top: -6px; inset-inline-end: 16px; font-size: 76px; line-height: 1;
+  font-weight: 900; color: var(--surface-2); font-variant-numeric: tabular-nums; transition: color 0.4s;
+}
+.service-card:hover .service-num { color: var(--brand-tint); }
+
 .service-icon {
-  width: 56px; height: 56px; display: grid; place-items: center; border-radius: 16px;
-  background: var(--brand-tint); color: var(--brand-link);
+  width: 60px; height: 60px; display: grid; place-items: center; border-radius: 18px;
+  background: linear-gradient(135deg, var(--brand-strong), var(--brand-link)); color: #fff;
+  box-shadow: 0 14px 26px -14px rgba(26, 81, 48, 0.55);
+  transition: transform 0.4s var(--ease);
 }
-.service-card h3 { font-size: 18px; margin-top: 8px; }
+.service-card:hover .service-icon { transform: scale(1.08) rotate(-4deg); }
+
+.service-card h3 { font-size: 19px; margin: 0; }
 .service-card p { margin: 0; color: var(--ink-3); font-size: 15px; line-height: 1.9; }
-.service-num { color: var(--gold-text); font-size: 13px; font-weight: 900; }
 
 .feature { display: grid; overflow: hidden; border-radius: var(--r-card); background: var(--green-950); color: #fff; box-shadow: var(--shadow-soft); }
 @media (min-width: 1024px) { .feature { grid-template-columns: 1.2fr 1fr; } }
@@ -1592,25 +1650,6 @@ main { min-height: 60vh; }
 .news-arrow { color: var(--brand-link); transition: transform 0.25s var(--ease); }
 .news-row:hover .news-arrow { transform: translateX(-4px); }
 
-.team-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px 20px; }
-@media (min-width: 768px) { .team-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1024px) { .team-grid { grid-template-columns: repeat(4, 1fr); } }
-.team-group + .team-group { margin-top: 56px; }
-.team-group-title { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
-.team-group-title h2 { font-size: 22px; }
-.team-group-title::before { content: ""; width: 4px; height: 20px; border-radius: 999px; background: var(--gold); }
-.team-card { display: grid; justify-items: center; gap: 4px; text-align: center; }
-.team-photo {
-  width: 128px; height: 128px; display: grid; place-items: center; overflow: hidden;
-  border-radius: 999px; background: var(--brand-tint); margin-bottom: 14px;
-  box-shadow: 0 0 0 3px var(--gold), 0 0 0 6px rgba(197, 160, 89, 0.25);
-}
-@media (min-width: 1024px) { .team-photo { width: 144px; height: 144px; } }
-.team-photo img { width: 100%; height: 100%; object-fit: cover; object-position: top; transition: transform 0.6s var(--ease); }
-.team-card:hover .team-photo img { transform: scale(1.05); }
-.team-initial { font-size: 40px; font-weight: 900; color: var(--brand-link); }
-.team-card h3 { font-size: 16px; }
-.team-card p { margin: 0; color: var(--ink-3); font-size: 13px; font-weight: 700; }
 
 .gallery-masonry { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 @media (min-width: 1024px) { .gallery-masonry { grid-template-columns: repeat(4, 1fr); } }
@@ -1653,97 +1692,73 @@ main { min-height: 60vh; }
 .emergency .btn bdi { direction: ltr; unicode-bidi: isolate; }
 
 /* ---------- 12. Detail pages ---------- */
-.mission-hero {
-  position: relative; isolation: isolate; overflow: hidden;
-  min-height: min(70vh, 680px); display: flex; align-items: flex-end;
-  background: var(--green-950); color: #fff;
-}
-/* Wide desktop windows get an even taller hero - there is plenty of vertical
-   room to spare there and a short banner looks cramped next to a wide title. */
-@media (min-width: 1024px) { .mission-hero { min-height: min(76vh, 760px); } }
-/* Biased toward the upper portion of the photo - the dark gradient and the
-   title overlay already sit over the bottom, so cropping there is less costly
-   than cropping the top, where the actual subject usually is. */
-.mission-hero-img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: center 25%; }
-.mission-hero::after {
-  content: ""; position: absolute; inset: 0; z-index: -1;
-  background: linear-gradient(to top, rgba(10, 36, 21, 0.96) 0%, rgba(10, 36, 21, 0.58) 48%, rgba(10, 36, 21, 0.18) 100%);
-}
-/* No cover photo: a soft branded gradient plus a large, muted category icon
-   instead of a flat, empty green block behind the title. */
-.mission-hero.no-cover { background: radial-gradient(120% 100% at 50% 100%, var(--green-900), var(--green-950)); }
-.mission-hero-empty-icon { position: absolute; inset: 0; z-index: -2; display: grid; place-items: center; color: rgba(255, 255, 255, 0.12); }
-.mission-hero-empty-icon svg { width: clamp(90px, 13vw, 160px); height: clamp(90px, 13vw, 160px); }
-.mission-hero-overlay { width: 100%; padding-block: 56px 44px; display: grid; gap: 16px; }
-.mission-hero-overlay h1 { color: #fff; font-size: clamp(28px, 4.2vw, 46px); max-width: 880px; line-height: 1.28; }
-.mission-hero-meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: #d6e6dc; font-size: 14px; font-weight: 700; }
-.mission-hero-meta span { display: inline-flex; align-items: center; gap: 8px; }
-
 .prose { max-width: 760px; font-size: 17px; line-height: 2.1; color: var(--ink-2); }
 .prose p { margin: 0 0 0.9em; }
 .prose h2 { margin: 0 0 12px; font-size: 26px; }
-/* The media wall lives inside the main prose column (not as a separate
-   full-width section) - see .mi-body above for how it, the crew sidebar and
-   related posts are laid out together. */
-.mission-media { display: grid; gap: 20px; margin-top: 12px; }
-.mission-media h2 { margin: 0; font-size: 24px; }
 
-/* Media section heading: title plus an item count and a swipe hint, so a
+/* The media gallery lives inside the main prose column (not as a separate
+   full-width section) - see .pd-body above for how it, the crew sidebar and
+   related posts are laid out together. */
+.pd-gallery { display: grid; gap: 20px; margin-top: 8px; }
+.pd-gallery h2 { margin: 0; font-size: 24px; }
+
+/* Gallery heading: title plus an item count and a swipe hint, so a
    horizontally-scrolling gallery still reads as a complete, bounded set. */
-.media-bar-title { justify-content: space-between; flex-wrap: wrap; row-gap: 8px; }
-.media-count {
+.pd-gallery-title { justify-content: space-between; flex-wrap: wrap; row-gap: 8px; }
+.pd-gallery-count {
   margin-inline-start: auto; display: inline-flex; align-items: center; padding: 5px 14px;
   border-radius: 999px; background: var(--brand-tint); color: var(--brand-link); font-size: 13px; font-weight: 800;
 }
-.media-hint { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 13px; font-weight: 700; }
-@media (max-width: 639px) { .media-hint { display: none; } }
+.pd-gallery-hint { display: flex; align-items: center; gap: 6px; color: var(--ink-3); font-size: 13px; font-weight: 700; }
+@media (max-width: 639px) { .pd-gallery-hint { display: none; } }
 
-/* Media wall: photos and videos in their own groups, each a horizontally
-   scrolling filmstrip rather than a tall wrapping grid - keeps the gallery
-   to a fixed height no matter how many items there are, and reaching the
-   rest of the page never takes more than a short vertical scroll. */
-.media-wall { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+/* Photos and videos in their own groups, each a horizontally scrolling
+   filmstrip rather than a tall wrapping grid - keeps the gallery to a fixed
+   height no matter how many items there are, and reaching the rest of the
+   page never takes more than a short vertical scroll. */
+.pd-gallery-wall { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
 
-.media-photos {
+.pd-gallery-photos {
   display: flex; flex-wrap: nowrap; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch; scrollbar-width: none; scroll-snap-type: x proximity;
   min-width: 0; margin-inline: -4px; padding: 6px 4px;
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
-.media-photos::-webkit-scrollbar { display: none; }
-.media-photo {
+.pd-gallery-photos::-webkit-scrollbar { display: none; }
+.pd-gallery-photo {
   flex: none; scroll-snap-align: start; width: clamp(160px, 26vw, 240px); height: clamp(160px, 26vw, 240px);
   position: relative; display: block; padding: 0; border: 0; overflow: hidden; border-radius: 14px; cursor: pointer; background: var(--green-900);
 }
-.media-photo.featured { width: clamp(220px, 36vw, 340px); }
-.media-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.7s var(--ease); }
-.media-photo:hover img { transform: scale(1.06); }
-.media-photo::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(11, 36, 21, 0.45), transparent 50%); opacity: 0.5; transition: opacity 0.3s; }
-.media-photo:hover::after { opacity: 0.85; }
-.media-photo:focus-visible { outline: 3px solid var(--gold-light); outline-offset: 3px; }
+.pd-gallery-photo.featured { width: clamp(220px, 36vw, 340px); }
+.pd-gallery-photo img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.7s var(--ease); }
+.pd-gallery-photo:hover img { transform: scale(1.06); }
+.pd-gallery-photo::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, rgba(11, 36, 21, 0.45), transparent 50%); opacity: 0.5; transition: opacity 0.3s; }
+.pd-gallery-photo:hover::after { opacity: 0.85; }
+.pd-gallery-photo:focus-visible { outline: 3px solid var(--gold-light); outline-offset: 3px; }
 
-.media-videos {
+.pd-gallery-videos {
   display: flex; flex-wrap: nowrap; gap: 16px; overflow-x: auto; overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch; scrollbar-width: none; scroll-snap-type: x proximity;
   min-width: 0; margin-inline: -4px; padding: 6px 4px;
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
-.media-videos::-webkit-scrollbar { display: none; }
-.media-video {
+.pd-gallery-videos::-webkit-scrollbar { display: none; }
+.pd-gallery-video {
   flex: none; scroll-snap-align: start; width: clamp(240px, 42vw, 380px);
   position: relative; border-radius: 16px; overflow: hidden; background: var(--green-950); box-shadow: var(--shadow-card);
 }
-.media-video video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
-.media-video-badge {
+.pd-gallery-video video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+.pd-gallery-video-badge {
   position: absolute; z-index: 1; top: 12px; inset-inline-start: 12px; pointer-events: none;
   display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px;
   background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 11.5px; font-weight: 900;
 }
-.mission-detail-footer { padding-block: 0 64px; }
-.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--brand-link); font-weight: 900; }
-.back-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+.pd-footer { padding-block: 0 64px; }
+.pd-footer-link { display: inline-flex; align-items: center; gap: 8px; color: var(--brand-link); font-weight: 900; }
+.pd-footer-link:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 /* ---------- 13. About & contact ---------- */
 .about-layout { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: start; }
@@ -1968,8 +1983,6 @@ main { min-height: 60vh; }
   .card.form { padding: 18px; }
   .row-actions > * + * { margin-inline-start: 12px; }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
-  .mission-hero { min-height: 460px; }
-  .mission-hero-overlay h1, .post-hero-overlay h1 { font-size: 26px; }
   .admin-main { padding-inline: 16px; }
   .gallery-masonry { gap: 8px; }
   .donate-icon { width: 64px; height: 64px; }

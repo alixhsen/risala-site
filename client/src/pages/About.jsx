@@ -98,13 +98,6 @@ export default function About() {
               <p key={i} className={i === 0 ? 'about-lead' : 'about-body'}>{p}</p>
             ))}
           </div>
-          <div className="about-arch">
-            <div className="about-arch-frame">
-              {settings.hero_url
-                ? <img src={settings.hero_url} alt={`فريق ${identity[0] || ''} في الميدان`} />
-                : <div className="cover-empty" />}
-            </div>
-          </div>
         </div>
       </section>
 

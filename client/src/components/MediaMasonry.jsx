@@ -13,7 +13,7 @@ function PhotoTile({ item, i, featured, onOpen }) {
     <button
       ref={ref}
       type="button"
-      className={`media-photo reveal${featured ? ' featured' : ''}`}
+      className={`pd-gallery-photo reveal${featured ? ' featured' : ''}`}
       style={delayStyle(i)}
       onClick={onOpen}
       aria-label="عرض الصورة"
@@ -28,9 +28,9 @@ function PhotoTile({ item, i, featured, onOpen }) {
 function VideoTile({ item, i }) {
   const ref = useReveal();
   return (
-    <div ref={ref} className="media-video reveal" style={delayStyle(i)}>
+    <div ref={ref} className="pd-gallery-video reveal" style={delayStyle(i)}>
       <video src={item.url} controls preload="metadata" />
-      <span className="media-video-badge"><Play size={13} aria-hidden="true" /> فيديو</span>
+      <span className="pd-gallery-video-badge"><Play size={13} aria-hidden="true" /> فيديو</span>
     </div>
   );
 }
@@ -43,16 +43,16 @@ export default function MediaMasonry({ items }) {
   const videos = items.filter((m) => m.kind === 'video');
 
   return (
-    <div className="media-wall">
+    <div className="pd-gallery-wall">
       {photos.length > 0 && (
-        <div className="media-photos">
+        <div className="pd-gallery-photos">
           {photos.map((item, i) => (
             <PhotoTile key={item.id ?? item.url} item={item} i={i} featured={i === 0 && photos.length > 2} onOpen={() => setViewer(i)} />
           ))}
         </div>
       )}
       {videos.length > 0 && (
-        <div className="media-videos">
+        <div className="pd-gallery-videos">
           {videos.map((item, i) => <VideoTile key={item.id ?? item.url} item={item} i={i} />)}
         </div>
       )}

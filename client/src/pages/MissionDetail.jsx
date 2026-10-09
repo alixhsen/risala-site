@@ -35,13 +35,13 @@ export default function MissionDetail() {
       <h2>فريق الاستجابة</h2>
       {crew > 0
         ? (
-          <div className="mi-crew-grid">
+          <div className="pd-crew-grid">
             {post.paramedics.map((p) => (
-              <div key={p.id} className="mi-crew-card">
-                <span className="mi-crew-photo">
+              <div key={p.id} className="pd-crew-card">
+                <span className="pd-crew-photo">
                   {p.photo_url ? <img src={p.photo_url} alt="" /> : <span>{p.name.trim().charAt(0)}</span>}
                 </span>
-                <span className="mi-crew-name">{p.name}</span>
+                <span className="pd-crew-name">{p.name}</span>
               </div>
             ))}
           </div>

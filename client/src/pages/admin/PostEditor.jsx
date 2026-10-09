@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Info, FileText, Users, Image, Images, Eye, WandSparkles, Siren, Activity, Newspaper } from 'lucide-react';
+import { Info, FileText, Users, Image, Images, Eye, WandSparkles, Siren, Activity, Newspaper, Share2 } from 'lucide-react';
 import { useLoad, useSettings } from '../../App.jsx';
 import { useAdmin } from '../../components/AdminLayout.jsx';
 import CoverGenerator from '../../components/CoverGenerator.jsx';
+import SocialPost from '../../components/SocialPost.jsx';
 import ImageInput from '../../components/ImageInput.jsx';
 import MediaInput from '../../components/MediaInput.jsx';
 import ParamedicPicker from '../../components/ParamedicPicker.jsx';
@@ -67,12 +68,15 @@ export default function PostEditor() {
   const isMission = post.category === 'mission';
   const missionType = missionTypes.data.find((t) => t.id === post.mission_type_id);
   const CatIcon = CATEGORY_ICON[post.category] || FileText;
-  const initialInfo = isMission ? {
-    typeLabel: missionType?.name || '',
+  // Feeds both the info-card and the Instagram/social-post generator modes -
+  // available for every category, not just missions, so a type label and
+  // date are always ready even where there's no mission type to pull from.
+  const initialInfo = {
+    typeLabel: isMission ? (missionType?.name || '') : (CATEGORIES[post.category] || ''),
     dateLabel: formatDate(post.event_date),
-    names: team.data.filter((m) => post.paramedic_ids.includes(m.id)).map((m) => m.name),
+    names: isMission ? team.data.filter((m) => post.paramedic_ids.includes(m.id)).map((m) => m.name) : [],
     body: post.body,
-  } : undefined;
+  };
 
   return (
     <>
@@ -158,6 +162,19 @@ export default function PostEditor() {
                 />
               </div>
             )}
+          </FormSection>
+
+          <FormSection icon={Share2} title="صور التواصل الاجتماعي" help="تُنشأ تلقائياً من بيانات المنشور أعلاه، بمقاس عمودي جاهز لإنستغرام وفيسبوك">
+            <SocialPost
+              settings={settings}
+              title={post.title}
+              coverUrl={post.cover_url}
+              dateLabel={initialInfo.dateLabel}
+              typeLabel={initialInfo.typeLabel}
+              summary={post.summary}
+              body={post.body}
+              names={initialInfo.names}
+            />
           </FormSection>
 
           <FormSection icon={Images} title="صور وفيديوهات إضافية" help="تظهر في معرض المنشور بالترتيب الذي تضيفها به">

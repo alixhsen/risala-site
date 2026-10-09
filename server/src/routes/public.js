@@ -39,7 +39,7 @@ router.get('/posts/:id', wrap(async (req, res) => {
   const id = idParam(req);
   if (!id) return res.status(404).json({ error: 'غير موجود' });
   const rows = await query(
-    `SELECT p.id, p.title, p.category, p.summary, p.body, p.cover_url, p.event_date, p.published_at,
+    `SELECT p.id, p.title, p.category, p.summary, p.body, p.cover_url, p.event_date, p.published_at, p.pinned,
             mt.id AS mission_type_id, mt.name AS mission_type_name, mt.color AS mission_type_color
      FROM dbo.Posts p
      LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id

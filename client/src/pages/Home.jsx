@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaWhatsapp } from 'react-icons/fa';
 import {
-  Ambulance, Flame, LifeBuoy, Megaphone, Phone, HeartHandshake, Quote, Calendar, ArrowLeft,
+  Ambulance, LifeBuoy, Megaphone, Phone, HeartHandshake, Quote, Calendar, ArrowLeft,
   Droplet, MessageCircle, Siren, BarChart3, Users, Newspaper, Camera, HeartPulse,
   PhoneCall, Tag, Users2, ClipboardList, ShieldCheck, Pin,
 } from 'lucide-react';
@@ -23,7 +23,6 @@ import { LOGO } from '../lib/brand.js';
 
 const SERVICES = [
   [Ambulance, 'إسعاف ونقل المصابين', 'استجابة سريعة وتقييم ميداني، ونقل آمن إلى أقرب مستشفى مجهّز.'],
-  [Flame, 'إطفاء الحرائق', 'فرق مدرّبة على التدخل السريع لإخماد الحرائق وحماية الأرواح والممتلكات.'],
   [LifeBuoy, 'بحث وإنقاذ', 'رفع الأنقاض وانتشال المصابين، وإخلاء المناطق الخطرة بأمان.'],
   [Megaphone, 'تغطية وتوعية', 'مواكبة المناسبات، ودورات إسعافات أولية وتوعية للأهالي.'],
 ];

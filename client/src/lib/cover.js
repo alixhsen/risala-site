@@ -361,6 +361,249 @@ export function drawInfoCard(ctx, W, H, o) {
   identityBlock(ctx, o, W / 2, H - 68 * s, s);
 }
 
+// How many rows drawGlassChips will need for this name list, without
+// drawing anything - lets the caller reserve the right amount of vertical
+// space before it knows where the block will sit.
+function countChipRows(ctx, names, maxWidth, s) {
+  const padX = 18 * s, gapX = 10 * s, maxRows = 2;
+  ctx.font = `800 ${21 * s}px ${FONT}`;
+  let row = 0, cursor = maxWidth, shown = 0;
+  for (const name of names) {
+    const chipW = ctx.measureText(name).width + padX * 2;
+    if (cursor - chipW < 0) {
+      if (row + 1 >= maxRows) break;
+      row++;
+      cursor = maxWidth;
+    }
+    cursor -= chipW + gapX;
+    shown++;
+  }
+  if (names.length - shown > 0 && cursor < maxWidth * 0.12) row = Math.min(row + 1, maxRows - 1);
+  return row + 1;
+}
+
+// "Glass" chip row for participant names over a dark photo - translucent
+// white pills instead of drawChips' light-tinted ones (which assume a white
+// card background and would be unreadable here). Wraps onto a second row
+// and collapses anything past that into a "+N" badge. Returns row count.
+function drawGlassChips(ctx, names, rightX, topY, maxWidth, s, color) {
+  const padX = 18 * s, rowH = 46 * s, gapX = 10 * s, gapY = 10 * s, maxRows = 2;
+  ctx.font = `800 ${21 * s}px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const leftX = rightX - maxWidth;
+  let row = 0, cursor = rightX, shown = 0;
+  for (const name of names) {
+    const chipW = ctx.measureText(name).width + padX * 2;
+    if (cursor - chipW < leftX) {
+      if (row + 1 >= maxRows) break;
+      row++;
+      cursor = rightX;
+    }
+    const chipX = cursor - chipW;
+    const chipY = topY + row * (rowH + gapY);
+    roundRect(ctx, chipX, chipY, chipW, rowH, rowH / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+    ctx.lineWidth = 1 * s;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name, chipX + chipW / 2, chipY + rowH / 2 + 1 * s);
+    cursor = chipX - gapX;
+    shown++;
+  }
+  const remaining = names.length - shown;
+  if (remaining > 0) {
+    const text = `+${remaining}`;
+    const chipW = ctx.measureText(text).width + padX * 2;
+    let chipX = cursor - chipW;
+    if (chipX < leftX) { row = Math.min(row + 1, maxRows - 1); chipX = rightX - chipW; }
+    const chipY = topY + row * (rowH + gapY);
+    roundRect(ctx, chipX, chipY, chipW, rowH, rowH / 2);
+    ctx.fillStyle = color.band;
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, chipX + chipW / 2, chipY + rowH / 2 + 1 * s);
+  }
+  return row + 1;
+}
+
+// Social post: the photo as a full-bleed background with a gradient for
+// legibility (no white card) - identity row, a type badge, the title, the
+// date, the response team as chips (when `names` is given) and a details
+// line, closing with a footer bar carrying the phone number and Instagram
+// handle. The body text's line count is computed from whatever room is left
+// after the rest of the content, so it never collides with the footer no
+// matter how much (or little) else is on the page. Meant to be downloaded
+// and posted to Instagram/Facebook as-is, so it defaults to the portrait
+// 4:5 size.
+export function drawSocial(ctx, W, H, o) {
+  const s = Math.min(W, H) / 1080;
+  const color = BAND_COLORS[o.color] || BAND_COLORS.green;
+  ctx.direction = 'rtl';
+  ctx.fillStyle = '#0b2415';
+  ctx.fillRect(0, 0, W, H);
+
+  if (o.photo) drawPhoto(ctx, o.photo, 0, 0, W, H, o);
+  else placeholder(ctx, 0, 0, W, H, s);
+
+  // Darken throughout, with heavier gradients top and bottom so the identity
+  // row and the text block stay legible over any photo.
+  ctx.fillStyle = 'rgba(8, 28, 17, 0.3)';
+  ctx.fillRect(0, 0, W, H);
+  const gBottom = ctx.createLinearGradient(0, H * 0.3, 0, H);
+  gBottom.addColorStop(0, 'rgba(8,28,17,0)');
+  gBottom.addColorStop(0.45, 'rgba(8,28,17,0.82)');
+  gBottom.addColorStop(1, 'rgba(8,28,17,0.97)');
+  ctx.fillStyle = gBottom;
+  ctx.fillRect(0, H * 0.3, W, H * 0.7);
+  const gTop = ctx.createLinearGradient(0, 0, 0, 230 * s);
+  gTop.addColorStop(0, 'rgba(8,28,17,0.88)');
+  gTop.addColorStop(1, 'rgba(8,28,17,0)');
+  ctx.fillStyle = gTop;
+  ctx.fillRect(0, 0, W, 230 * s);
+
+  // Identity row: logo in a gold ring, team name beside it.
+  if (o.logo) {
+    const logoR = 56 * s, logoCx = W - 90 * s, logoCy = 96 * s;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(logoCx, logoCy, logoR, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#fff'; ctx.fillRect(logoCx - logoR, logoCy - logoR, logoR * 2, logoR * 2);
+    const lr = o.logo.width / o.logo.height;
+    let lw = logoR * 2 * 0.86, lh = lw / lr;
+    if (lh > logoR * 2 * 0.86) { lh = logoR * 2 * 0.86; lw = lh * lr; }
+    ctx.drawImage(o.logo, logoCx - lw / 2, logoCy - lh / 2, lw, lh);
+    ctx.restore();
+    ctx.strokeStyle = '#c5a059'; ctx.lineWidth = 3 * s;
+    ctx.beginPath(); ctx.arc(logoCx, logoCy, logoR + 4 * s, 0, Math.PI * 2); ctx.stroke();
+    const textRight = logoCx - logoR - 22 * s;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${30 * s}px ${FONT}`;
+    if (o.line1) ctx.fillText(o.line1, textRight, logoCy - 4 * s);
+    ctx.fillStyle = '#cfe0d4';
+    ctx.font = `700 ${22 * s}px ${FONT}`;
+    if (o.line3) ctx.fillText(o.line3, textRight, logoCy + 26 * s);
+  }
+
+  // Content block. Its total height is measured first, then the block is
+  // anchored a fixed gap above the footer - so the gaps between the date,
+  // team and details stay the same consistent size whether there's a title
+  // above them or not, instead of a fixed top offset leaving a large dead
+  // gap (above or below) when a page has little content (e.g. no title).
+  const right = W - 70 * s;
+  const maxW = W - 140 * s;
+  const footerH = (o.phone || o.instagramHandle) ? 86 * s : 0;
+  const bottomLimit = H - footerH - 34 * s;
+  const minTop = 260 * s;
+  const gap = 32 * s;
+
+  const badgeH = 52 * s;
+  const titleLH = 64 * s;
+  const titleLines = o.title ? wrapLines(ctx, o.title, maxW, 2) : [];
+  const dateH = o.dateLabel ? 5 * s + 20 * s + 26 * s : 0;
+  const names = (o.names || []).filter(Boolean);
+  const teamLabelH = names.length ? 28 * s : 0;
+  const chipRowH = 46 * s, chipGapY = 10 * s;
+  const chipRows = names.length ? countChipRows(ctx, names, maxW, s) : 0;
+  const chipsH = names.length ? chipRows * chipRowH + (chipRows - 1) * chipGapY : 0;
+  const bodyLineH = 36 * s;
+  const bodyMaxLines = names.length ? 4 : 6;
+  const bodyLines = o.body ? wrapLines(ctx, o.body, maxW, bodyMaxLines) : [];
+
+  const blockHeights = [
+    o.typeLabel ? badgeH : 0,
+    titleLines.length * titleLH,
+    dateH,
+    names.length ? teamLabelH + chipsH : 0,
+    bodyLines.length * bodyLineH,
+  ].filter((h) => h > 0);
+  const totalH = blockHeights.reduce((a, b) => a + b, 0) + gap * Math.max(0, blockHeights.length - 1);
+  let y = Math.max(minTop, bottomLimit - totalH);
+
+  if (o.typeLabel) {
+    ctx.font = `900 ${26 * s}px ${FONT}`;
+    const padX = 26 * s;
+    const badgeW = ctx.measureText(o.typeLabel).width + padX * 2;
+    roundRect(ctx, right - badgeW, y, badgeW, badgeH, badgeH / 2);
+    ctx.fillStyle = color.band;
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'right';
+    ctx.fillText(o.typeLabel, right - padX, y + badgeH * 0.68);
+    y += badgeH + gap;
+  }
+
+  if (titleLines.length) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `900 ${54 * s}px ${FONT}`;
+    ctx.textAlign = 'right';
+    titleLines.forEach((line, i) => ctx.fillText(line, right, y + (i + 0.78) * titleLH));
+    y += titleLines.length * titleLH + gap;
+  }
+
+  if (o.dateLabel) {
+    ctx.fillStyle = '#c5a059';
+    ctx.fillRect(right - 64 * s, y, 64 * s, 5 * s);
+    ctx.font = `700 ${28 * s}px ${FONT}`;
+    ctx.fillStyle = '#e7efe9';
+    ctx.textAlign = 'right';
+    ctx.fillText(o.dateLabel, right, y + 5 * s + 20 * s + 20 * s);
+    y += dateH + gap;
+  }
+
+  if (names.length) {
+    ctx.font = `800 ${20 * s}px ${FONT}`;
+    ctx.fillStyle = '#9fb6a6';
+    ctx.textAlign = 'right';
+    ctx.fillText('فريق الاستجابة', right, y + teamLabelH * 0.7);
+    y += teamLabelH;
+    drawGlassChips(ctx, names, right, y, maxW, s, color);
+    y += chipsH + gap;
+  }
+
+  if (bodyLines.length) {
+    ctx.font = `500 ${26 * s}px ${FONT}`;
+    ctx.fillStyle = '#c9d8cd';
+    ctx.textAlign = 'right';
+    bodyLines.forEach((line, i) => ctx.fillText(line, right, y + (i + 0.78) * bodyLineH));
+    y += bodyLines.length * bodyLineH;
+  }
+
+  // Footer bar: phone and Instagram handle.
+  if (footerH) {
+    ctx.fillStyle = 'rgba(8,28,17,0.92)';
+    ctx.fillRect(0, H - footerH, W, footerH);
+    ctx.strokeStyle = 'rgba(197,160,89,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, H - footerH); ctx.lineTo(W, H - footerH); ctx.stroke();
+    if (o.phone) {
+      ctx.textAlign = 'right';
+      ctx.font = `900 ${28 * s}px ${FONT}`;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(o.phone, right, H - 36 * s);
+    }
+    if (o.instagramHandle) {
+      ctx.textAlign = 'left';
+      ctx.font = `700 ${24 * s}px ${FONT}`;
+      ctx.fillStyle = '#c5a059';
+      ctx.fillText(o.instagramHandle, 70 * s, H - 36 * s);
+    }
+  }
+
+  // Outer gold frame - the brand's constant accent, regardless of swatch.
+  ctx.strokeStyle = 'rgba(197,160,89,0.85)';
+  ctx.lineWidth = 4 * s;
+  ctx.strokeRect(16 * s, 16 * s, W - 32 * s, H - 32 * s);
+}
+
+// Pulls "@handle" out of a full instagram.com URL for the social post's footer.
+export function instagramHandle(url) {
+  const m = String(url || '').match(/instagram\.com\/([^/?#]+)/i);
+  return m ? `@${m[1]}` : '';
+}
+
 export function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();

@@ -11,7 +11,14 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const { requireAuth, requireCsrfHeader } = require('./auth');
-const { getPool } = require('./db');
+const { getPool, query } = require('./db');
+
+// Same ALTER as database/schema.sql (and just as idempotent) - applied here
+// too so this boot picks it up without a separate `npm run db:init` pass.
+async function migrate() {
+  await query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Users') AND name = 'permissions')
+    ALTER TABLE dbo.Users ADD permissions NVARCHAR(MAX) NULL`);
+}
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
@@ -55,6 +62,9 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`API running on http://localhost:${PORT}`);
   getPool()
-    .then(() => console.log('Connected to SQL Server.'))
+    .then(async () => {
+      console.log('Connected to SQL Server.');
+      try { await migrate(); } catch (err) { console.error('Migration failed:', err.message); }
+    })
     .catch((err) => console.error(`Could not connect to SQL Server: ${err.message}\nCheck the DB_ settings in server/.env.`));
 });

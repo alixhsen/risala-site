@@ -52,11 +52,15 @@ async function requireAuth(req, res, next) {
     if (!token) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
     const payload = jwt.verify(token, SECRET);
     const rows = await query(
-      'SELECT id, username, display_name, role FROM dbo.Users WHERE id = @id AND active = 1',
+      'SELECT id, username, display_name, role, permissions FROM dbo.Users WHERE id = @id AND active = 1',
       { id: Number(payload.sub) }
     );
     if (!rows.length) return res.status(401).json({ error: 'يجب تسجيل الدخول' });
-    req.user = rows[0];
+    const row = rows[0];
+    let permissions = [];
+    try { permissions = JSON.parse(row.permissions || '[]'); } catch { permissions = []; }
+    if (!Array.isArray(permissions)) permissions = [];
+    req.user = { id: row.id, username: row.username, display_name: row.display_name, role: row.role, permissions };
     next();
   } catch (err) {
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
@@ -71,4 +75,18 @@ function adminOnly(req, res, next) {
   next();
 }
 
-module.exports = { signToken, setSessionCookie, clearSessionCookie, requireCsrfHeader, requireAuth, adminOnly };
+// Gates a whole route prefix to the admin pages an editor has been granted
+// (see Users.jsx's per-page picker). The admin role always passes; `keys` is
+// usually one page, but a route shared by more than one page's UI (e.g. the
+// team roster, read by both the team page and member reports) accepts any of
+// the pages that legitimately use it.
+function requireModule(keys) {
+  const allowed = Array.isArray(keys) ? keys : [keys];
+  return (req, res, next) => {
+    if (req.user.role === 'admin') return next();
+    if (allowed.some((k) => req.user.permissions.includes(k))) return next();
+    return res.status(403).json({ error: 'ليست لديك صلاحية الوصول إلى هذه الصفحة' });
+  };
+}
+
+module.exports = { signToken, setSessionCookie, clearSessionCookie, requireCsrfHeader, requireAuth, adminOnly, requireModule };

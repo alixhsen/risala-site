@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Download, Siren, Stethoscope, Users, Activity, Share2, FileSpreadsheet } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Siren, Stethoscope, Users, Activity, Share2, FileSpreadsheet, Droplet, Gift } from 'lucide-react';
 import { toCsv, downloadCsv } from '../../lib/csv.js';
 import { generateSocialReport } from '../../lib/socialReport.js';
 import { useSettings } from '../../App.jsx';
@@ -101,6 +101,29 @@ export default function Reports() {
     downloadCsv(`المهام-${MONTHS_AR[month - 1]}-${year}`, toCsv(columns, rows));
   }
 
+  function exportBloodDonationsCsv() {
+    const columns = [
+      { label: 'التاريخ', value: (d) => formatDate(d.donation_date) },
+      { label: 'اسم المتبرّع', value: 'donor_name' },
+      { label: 'فصيلة الدم', value: 'blood_type' },
+      { label: 'المستشفى', value: 'hospital' },
+      { label: 'المستفيد', value: 'recipient_name' },
+    ];
+    downloadCsv(`التبرع-بالدم-${MONTHS_AR[month - 1]}-${year}`, toCsv(columns, data.bloodDonations));
+  }
+
+  function exportCommunityDonationsCsv() {
+    const columns = [
+      { label: 'التاريخ', value: (d) => formatDate(d.donation_date) },
+      { label: 'الصنف', value: 'item_type_name' },
+      { label: 'التفاصيل', value: 'item_detail' },
+      { label: 'الكمية', value: 'quantity' },
+      { label: 'عضو الفريق', value: 'team_member_name' },
+      { label: 'المستفيد', value: 'recipient_name' },
+    ];
+    downloadCsv(`الخدمات-العينية-${MONTHS_AR[month - 1]}-${year}`, toCsv(columns, data.communityDonations));
+  }
+
   const typeSlices = data
     ? Object.entries(data.typeCounts).sort((a, b) => b[1] - a[1]).map(([label, value], i) => ({ label, value, color: colorAt(i) }))
     : [];
@@ -138,6 +161,12 @@ export default function Reports() {
           <button type="button" className="btn outline" onClick={exportMissionsCsv} disabled={!data}>
             <FileSpreadsheet size={16} aria-hidden="true" /> CSV المهام
           </button>
+          <button type="button" className="btn outline" onClick={exportBloodDonationsCsv} disabled={!data || data.bloodDonations.length === 0}>
+            <FileSpreadsheet size={16} aria-hidden="true" /> CSV التبرع بالدم
+          </button>
+          <button type="button" className="btn outline" onClick={exportCommunityDonationsCsv} disabled={!data || data.communityDonations.length === 0}>
+            <FileSpreadsheet size={16} aria-hidden="true" /> CSV الخدمات العينية
+          </button>
         </div>
       </header>
 
@@ -149,6 +178,8 @@ export default function Reports() {
           [Users, 'مسعفون مشاركون', data?.paramedics.length, 'gold'],
           [Stethoscope, 'خدمات طبية', data?.servicesTotal, 'brand'],
           [Activity, 'أنواع المهام', data ? Object.keys(data.typeCounts).length : undefined, 'gold'],
+          [Droplet, 'تبرعات بالدم', data?.bloodDonationsTotal, 'brand'],
+          [Gift, 'خدمات عينية', data?.communityDonationsTotal, 'gold'],
         ].map(([Icon, label, value, tone]) => (
           <article key={label} className={`kpi kpi-${tone}`}>
             <span className="kpi-icon"><Icon size={20} aria-hidden="true" /></span>
@@ -225,6 +256,31 @@ export default function Reports() {
         <section className="panel">
           <header className="panel-head"><div><h2>الخدمات حسب المسعف</h2><p>أعلى المسعفين تسجيلاً</p></div></header>
           {data ? <HBars rows={topServices} empty="لا خدمات مسجّلة لأسماء محدّدة خلال هذا الشهر." /> : <div className="chart-loading" />}
+        </section>
+      </div>
+
+      <div className="dash-grid dash-grid-2">
+        <section className="panel">
+          <header className="panel-head"><div><h2>التبرع بالدم حسب الفصيلة</h2><p>{data ? `${data.bloodDonationsTotal} تبرّع` : '…'}</p></div></header>
+          {data && data.bloodDonationTypes.length > 0 ? (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>الفصيلة</th><th>العدد</th></tr></thead>
+                <tbody>{data.bloodDonationTypes.map((t) => <tr key={t.name}><td>{t.name}</td><td><strong>{t.count}</strong></td></tr>)}</tbody>
+              </table>
+            </div>
+          ) : <p className="muted">{data ? 'لا تبرعات بالدم مسجّلة خلال هذا الشهر.' : '…'}</p>}
+        </section>
+        <section className="panel">
+          <header className="panel-head"><div><h2>الخدمات العينية حسب الصنف</h2><p>{data ? `${data.communityDonationsQuantity} وحدة موزّعة` : '…'}</p></div></header>
+          {data && data.communityDonationTypes.length > 0 ? (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>الصنف</th><th>الكمية</th></tr></thead>
+                <tbody>{data.communityDonationTypes.map((t) => <tr key={t.name}><td>{t.name}</td><td><strong>{t.count}</strong></td></tr>)}</tbody>
+              </table>
+            </div>
+          ) : <p className="muted">{data ? 'لا خدمات عينية مسجّلة خلال هذا الشهر.' : '…'}</p>}
         </section>
       </div>
     </>

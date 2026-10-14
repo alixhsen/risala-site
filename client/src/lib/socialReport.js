@@ -92,8 +92,9 @@ export async function generateSocialReport({ settings, data, photoUrls = [] }) {
 
   // ----- Header -----
   const orgName = settings.line1 || settings.site_name || 'جمعية الرسالة للاسعاف الصحي';
-  put('التقرير الشهري', W - 80, 140, 34, 900, C.gold);
-  put(`${data.monthName} ${data.year}`, W - 80, 250, 102, 900, '#ffffff');
+  const isYearly = !data.monthName;
+  put(isYearly ? 'التقرير السنوي' : 'التقرير الشهري', W - 80, 140, 34, 900, C.gold);
+  put(isYearly ? `${data.year}` : `${data.monthName} ${data.year}`, W - 80, 250, 102, 900, '#ffffff');
   cx.fillStyle = C.gold;
   cx.fillRect(W - 80 - 90, 278, 90, 4);
   put(orgName, W - 80, 336, 32, 700, 'rgba(255,255,255,0.92)');
@@ -110,39 +111,55 @@ export async function generateSocialReport({ settings, data, photoUrls = [] }) {
 
   put('المهام والخدمات', W - 110, panelY + 70, 36, 900, C.green);
 
-  // Rows: every mission type and every service type, largest first
-  const rows = [
-    ...Object.entries(data.typeCounts).map(([name, count]) => ({ name, count, kind: 'مهمة' })),
-    ...data.serviceTypes.map((t) => ({ name: t.name, count: t.count, kind: 'خدمة' })),
-  ].sort((a, b) => b.count - a.count);
-  const shown = rows.length > MAX_ROWS ? rows.slice(0, MAX_ROWS - 1) : rows;
-  const restCount = rows.slice(MAX_ROWS - 1).reduce((s, r) => s + r.count, 0);
-  const restTypes = rows.length > MAX_ROWS ? rows.length - (MAX_ROWS - 1) : 0;
+  // Mission types get their own breakdown (rolled up into "other" if there
+  // are too many to fit); services, activities and both kinds of donation
+  // each appear as one fixed total row, counted against the same row budget
+  // so they're never squeezed out by a long mission-type breakdown. Any row
+  // - mission type or fixed total - with nothing to show is left out.
+  const missionRows = Object.entries(data.typeCounts)
+    .map(([name, count]) => ({ name, count }))
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const fixedRows = [
+    { name: 'الخدمات الطبية', count: data.servicesTotal },
+    { name: 'الأنشطة', count: data.activitiesTotal },
+    { name: 'التبرع بالدم', count: data.bloodDonationsTotal },
+    { name: 'الخدمات العينية', count: data.communityDonationsQuantity },
+  ].filter((r) => r.count > 0);
+
+  const missionBudget = Math.max(0, MAX_ROWS - fixedRows.length);
+  let shownMissions = missionRows;
+  let overflowRow = null;
+  if (missionRows.length > missionBudget) {
+    const keep = Math.max(0, missionBudget - 1);
+    shownMissions = missionRows.slice(0, keep);
+    const restCount = missionRows.slice(keep).reduce((s, r) => s + r.count, 0);
+    overflowRow = { name: `أنواع مهام أخرى (${missionRows.length - keep})`, count: restCount };
+  }
+
+  const shown = [...shownMissions, ...fixedRows, ...(overflowRow ? [overflowRow] : [])]
+    .sort((a, b) => b.count - a.count);
 
   // Column headers
   const headY = panelY + 116;
   cx.fillStyle = C.soft;
   cx.fillRect(panelX + 24, headY, panelW - 48, 50);
   put('النوع', W - 110, headY + 34, 22, 900, C.ink3);
-  put('التصنيف', W / 2 + 40, headY + 34, 22, 900, C.ink3, 'center');
   put('العدد', 110, headY + 34, 22, 900, C.ink3, 'left');
 
   // Body rows
   const rowH = 46;
   let y = headY + 50;
-  const drawRow = (name, kind, count, alt) => {
+  const drawRow = (name, count, alt) => {
     if (alt) {
       cx.fillStyle = 'rgba(246,248,245,0.9)';
       cx.fillRect(panelX + 24, y, panelW - 48, rowH);
     }
     put(name, W - 110, y + 31, 25, 700, C.ink);
-    const kindColor = kind === 'مهمة' ? C.brand : C.goldText;
-    put(kind, W / 2 + 40, y + 31, 22, 900, kindColor, 'center');
     put(String(count), 110, y + 32, 26, 900, C.brand, 'left');
     y += rowH;
   };
-  shown.forEach((r, i) => drawRow(r.name, r.kind, r.count, i % 2 === 1));
-  if (restTypes > 0) drawRow(`أنواع أخرى (${restTypes})`, 'متنوعة', restCount, shown.length % 2 === 1);
+  shown.forEach((r, i) => drawRow(r.name, r.count, i % 2 === 1));
 
   // Total row
   const total = data.missionsTotal + data.servicesTotal;
@@ -179,7 +196,7 @@ export async function generateSocialReport({ settings, data, photoUrls = [] }) {
   const blob = await new Promise((resolve) => cv.toBlob(resolve, 'image/png'));
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `تقرير-${data.monthName}-${data.year}.png`;
+  a.download = isYearly ? `تقرير-سنوي-${data.year}.png` : `تقرير-${data.monthName}-${data.year}.png`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

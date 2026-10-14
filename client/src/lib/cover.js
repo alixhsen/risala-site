@@ -501,6 +501,11 @@ export function drawSocial(ctx, W, H, o) {
 
   const badgeH = 52 * s;
   const titleLH = 64 * s;
+  // wrapLines measures with whatever font is currently set on the context,
+  // so it must be set to each block's own font before measuring it - using
+  // the wrong (leftover) font here under-measures the text, under-counts
+  // the wrapped lines, and the real draw then overflows the frame.
+  ctx.font = `900 ${54 * s}px ${FONT}`;
   const titleLines = o.title ? wrapLines(ctx, o.title, maxW, 2) : [];
   const dateH = o.dateLabel ? 5 * s + 20 * s + 26 * s : 0;
   const names = (o.names || []).filter(Boolean);
@@ -510,6 +515,7 @@ export function drawSocial(ctx, W, H, o) {
   const chipsH = names.length ? chipRows * chipRowH + (chipRows - 1) * chipGapY : 0;
   const bodyLineH = 36 * s;
   const bodyMaxLines = names.length ? 4 : 6;
+  ctx.font = `500 ${26 * s}px ${FONT}`;
   const bodyLines = o.body ? wrapLines(ctx, o.body, maxW, bodyMaxLines) : [];
 
   const blockHeights = [

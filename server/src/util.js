@@ -23,6 +23,11 @@ const dateOnly = (v) => {
   return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
 };
 
+const timeOnly = (v) => {
+  const s = str(v, 5);
+  return s && /^\d{2}:\d{2}$/.test(s) ? s : null;
+};
+
 const idParam = (req) => {
   const id = Number(req.params.id);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -36,4 +41,4 @@ const intList = (v) => {
   return [...new Set(ids)];
 };
 
-module.exports = { wrap, str, uploadUrl, httpUrl, dateOnly, idParam, intList };
+module.exports = { wrap, str, uploadUrl, httpUrl, dateOnly, timeOnly, idParam, intList };

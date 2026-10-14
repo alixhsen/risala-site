@@ -19,9 +19,20 @@ import Posts from './pages/admin/Posts.jsx';
 import PostEditor from './pages/admin/PostEditor.jsx';
 import MissionTypesAdmin from './pages/admin/MissionTypesAdmin.jsx';
 import Reports from './pages/admin/Reports.jsx';
+import YearlyReport from './pages/admin/YearlyReport.jsx';
 import MemberReports from './pages/admin/MemberReports.jsx';
 import InventoryReport from './pages/admin/InventoryReport.jsx';
 import InventoryAdmin from './pages/admin/InventoryAdmin.jsx';
+import InventoryUnitsAdmin from './pages/admin/InventoryUnitsAdmin.jsx';
+import InventoryCategoriesAdmin from './pages/admin/InventoryCategoriesAdmin.jsx';
+import InventoryAssetsAdmin from './pages/admin/InventoryAssetsAdmin.jsx';
+import AmbulanceFinanceAdmin from './pages/admin/AmbulanceFinanceAdmin.jsx';
+import AmbulanceCategoriesAdmin from './pages/admin/AmbulanceCategoriesAdmin.jsx';
+import AmbulanceAssetsAdmin from './pages/admin/AmbulanceAssetsAdmin.jsx';
+import ScheduleAdmin from './pages/admin/ScheduleAdmin.jsx';
+import BloodDonationsAdmin from './pages/admin/BloodDonationsAdmin.jsx';
+import CommunityDonationsAdmin from './pages/admin/CommunityDonationsAdmin.jsx';
+import DonationItemTypesAdmin from './pages/admin/DonationItemTypesAdmin.jsx';
 import UsageAdmin from './pages/admin/UsageAdmin.jsx';
 import LoanedItemsAdmin from './pages/admin/LoanedItemsAdmin.jsx';
 import ServiceTypesAdmin from './pages/admin/ServiceTypesAdmin.jsx';
@@ -81,13 +92,24 @@ export default function App() {
           <Route path="posts/:id" element={<PostEditor />} />
           <Route path="mission-types" element={<MissionTypesAdmin />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="yearly-report" element={<YearlyReport />} />
           <Route path="member-reports" element={<MemberReports />} />
           <Route path="inventory-report" element={<InventoryReport />} />
           <Route path="inventory" element={<InventoryAdmin />} />
+          <Route path="inventory-assets" element={<InventoryAssetsAdmin />} />
+          <Route path="ambulance-finance" element={<AmbulanceFinanceAdmin />} />
+          <Route path="ambulance-categories" element={<AmbulanceCategoriesAdmin />} />
+          <Route path="ambulance-assets" element={<AmbulanceAssetsAdmin />} />
+          <Route path="inventory-units" element={<InventoryUnitsAdmin />} />
+          <Route path="inventory-categories" element={<InventoryCategoriesAdmin />} />
           <Route path="inventory-usage" element={<UsageAdmin />} />
           <Route path="loaned-items" element={<LoanedItemsAdmin />} />
           <Route path="service-types" element={<ServiceTypesAdmin />} />
           <Route path="service-logs" element={<ServiceLogsAdmin />} />
+          <Route path="schedule" element={<ScheduleAdmin />} />
+          <Route path="blood-donations" element={<BloodDonationsAdmin />} />
+          <Route path="community-donations" element={<CommunityDonationsAdmin />} />
+          <Route path="donation-item-types" element={<DonationItemTypesAdmin />} />
           <Route path="team" element={<TeamAdmin />} />
           <Route path="gallery" element={<GalleryAdmin />} />
           <Route path="generator" element={<Generator />} />

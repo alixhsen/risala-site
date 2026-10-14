@@ -1,37 +1,59 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange } from 'lucide-react';
 import { api, logout } from '../lib/api.js';
 import { useSettings } from '../App.jsx';
 import { LOGO } from '../lib/brand.js';
 
+// Each item: [path, label, Icon, adminOnly, pageKey]. adminOnly items
+// (settings/users) are admin-role-exclusive regardless of permissions.
+// Everything else with a pageKey needs that exact page granted (see
+// Users.jsx's per-page picker) unless the user is an admin. A null pageKey
+// (the dashboard) is always visible to any logged-in user. pageKey matches
+// the path's last segment, and must stay in sync with PAGE_GROUPS in
+// Users.jsx and the route gating in server/src/routes/admin.js.
 const GROUPS = [
   { title: 'الرئيسية', items: [
-    ['/admin', 'نظرة عامة', LayoutDashboard, false],
+    ['/admin', 'نظرة عامة', LayoutDashboard, false, null],
   ] },
   { title: 'المحتوى', items: [
-    ['/admin/posts', 'المنشورات', FileText, false],
-    ['/admin/generator', 'مولّد الصور', WandSparkles, false],
-    ['/admin/gallery', 'معرض الصور', Image, true],
-    ['/admin/team', 'الفريق', Users, true],
-    ['/admin/messages', 'الرسائل', MessagesSquare, true],
+    ['/admin/posts', 'المنشورات', FileText, false, 'posts'],
+    ['/admin/generator', 'مولّد الصور', WandSparkles, false, 'generator'],
+    ['/admin/gallery', 'معرض الصور', Image, false, 'gallery'],
+    ['/admin/team', 'الفريق', Users, false, 'team'],
+    ['/admin/messages', 'الرسائل', MessagesSquare, false, 'messages'],
   ] },
   { title: 'الميدان', items: [
-    ['/admin/mission-types', 'أنواع المهام', Siren, true],
-    ['/admin/reports', 'التقارير الشهرية', BarChart3, true],
-    ['/admin/member-reports', 'تقارير المسعفين', UserRound, true],
-    ['/admin/service-types', 'أنواع الخدمات', Stethoscope, true],
-    ['/admin/service-logs', 'سجلّ الخدمات', Activity, true],
+    ['/admin/mission-types', 'أنواع المهام', Siren, false, 'mission-types'],
+    ['/admin/reports', 'التقارير الشهرية', BarChart3, false, 'reports'],
+    ['/admin/yearly-report', 'التقرير السنوي', CalendarRange, false, 'yearly-report'],
+    ['/admin/member-reports', 'تقارير المسعفين', UserRound, false, 'member-reports'],
+    ['/admin/service-types', 'أنواع الخدمات', Stethoscope, false, 'service-types'],
+    ['/admin/service-logs', 'سجلّ الخدمات', Activity, false, 'service-logs'],
+    ['/admin/schedule', 'جدول المناوبات', Clock, false, 'schedule'],
   ] },
   { title: 'المخزون', items: [
-    ['/admin/inventory', 'المخزون الطبي', Package, true],
-    ['/admin/inventory-usage', 'سجلّ الاستخدام', ClipboardList, true],
-    ['/admin/loaned-items', 'العُهد', HandCoins, true],
-    ['/admin/inventory-report', 'تقرير المخزون', BarChart3, true],
+    ['/admin/inventory', 'المخزون الطبي', Package, false, 'inventory'],
+    ['/admin/inventory-assets', 'الأصول الثابتة', Wrench, false, 'inventory-assets'],
+    ['/admin/inventory-units', 'وحدات القياس', Ruler, false, 'inventory-units'],
+    ['/admin/inventory-categories', 'فئات المخزون', Tags, false, 'inventory-categories'],
+    ['/admin/inventory-usage', 'سجلّ الاستخدام', ClipboardList, false, 'inventory-usage'],
+    ['/admin/loaned-items', 'العُهد', HandCoins, false, 'loaned-items'],
+    ['/admin/inventory-report', 'تقرير المخزون', BarChart3, false, 'inventory-report'],
+  ] },
+  { title: 'سيارة الإسعاف', items: [
+    ['/admin/ambulance-finance', 'الإيرادات والمصروفات', Wallet, false, 'ambulance-finance'],
+    ['/admin/ambulance-categories', 'فئات مالية السيارة', Tags, false, 'ambulance-categories'],
+    ['/admin/ambulance-assets', 'معدات السيارة', Truck, false, 'ambulance-assets'],
+  ] },
+  { title: 'الخدمات المجتمعية', items: [
+    ['/admin/blood-donations', 'التبرع بالدم', Droplet, false, 'blood-donations'],
+    ['/admin/community-donations', 'خدمات عينية', Gift, false, 'community-donations'],
+    ['/admin/donation-item-types', 'أصناف الخدمات العينية', Tags, false, 'donation-item-types'],
   ] },
   { title: 'الإدارة', items: [
-    ['/admin/settings', 'الإعدادات', Settings, true],
-    ['/admin/users', 'المستخدمون', UserCog, true],
+    ['/admin/settings', 'الإعدادات', Settings, true, null],
+    ['/admin/users', 'المستخدمون', UserCog, true, null],
   ] },
 ];
 
@@ -58,6 +80,8 @@ export default function AdminLayout() {
 
   if (!user) return <div className="admin-loading"><span className="loader" /> جارٍ التحميل…</div>;
   const isAdmin = user.role === 'admin';
+  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+  const canSee = ([, , , adminOnly, pageKey]) => isAdmin || (!adminOnly && (!pageKey || permissions.includes(pageKey)));
   const title = TITLES[location.pathname] || (location.pathname.startsWith('/admin/posts/') ? 'تحرير منشور' : 'مركز الإدارة');
 
   return (
@@ -74,7 +98,7 @@ export default function AdminLayout() {
 
         <nav className="admin-nav" aria-label="قائمة الإدارة">
           {GROUPS.map((g) => {
-            const items = g.items.filter(([, , , adminOnly]) => isAdmin || !adminOnly);
+            const items = g.items.filter(canSee);
             if (items.length === 0) return null;
             return (
               <div key={g.title} className="admin-nav-group">
@@ -115,7 +139,7 @@ export default function AdminLayout() {
             <strong>{title}</strong>
           </nav>
         </div>
-        <Outlet context={{ user, isAdmin }} />
+        <Outlet context={{ user, isAdmin, permissions }} />
       </section>
 
       {open && <button type="button" className="admin-backdrop" aria-label="إغلاق القائمة" onClick={() => setOpen(false)} />}

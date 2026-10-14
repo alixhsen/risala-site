@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { UserRound, IdCard, Phone, ClipboardList, Plus, Eye, Pencil, Trash2, X, Check, Siren, Stethoscope, FileSpreadsheet } from 'lucide-react';
+import { UserRound, IdCard, Phone, ClipboardList, Plus, Eye, Pencil, Trash2, X, Check, Siren, Stethoscope, FileSpreadsheet, Car } from 'lucide-react';
 import { toCsv, downloadCsv } from '../../lib/csv.js';
 import { useDialog } from '../../components/admin/Dialog.jsx';
 import { useLoad } from '../../App.jsx';
@@ -14,6 +14,7 @@ const EMPTY = {
   nickname: '', father_name: '', mother_name: '', birth_date: '', birth_place: '', blood_type: '',
   registry_no: '', education: '', phone: '', address: '', joined_on: '', scout_unit: '',
   district: '', region: '', town: '', notes: '',
+  has_license: false, license_number: '', license_front_url: '', license_back_url: '',
 };
 
 // Dates come back as ISO timestamps; the form and the age maths want YYYY-MM-DD.
@@ -39,7 +40,7 @@ function toForm(m) {
   for (const k of Object.keys(EMPTY)) if (m[k] !== null && m[k] !== undefined) out[k] = m[k];
   // Members saved before the name parts existed only have the full name: use it as the first name.
   if (!m.first_name) out.first_name = m.name || '';
-  return { ...out, id: m.id, visible: !!m.visible, birth_date: dayOf(m.birth_date), joined_on: dayOf(m.joined_on) };
+  return { ...out, id: m.id, visible: !!m.visible, has_license: !!m.has_license, birth_date: dayOf(m.birth_date), joined_on: dayOf(m.joined_on) };
 }
 
 // Previous / next controls under a paged list.
@@ -150,6 +151,8 @@ export default function TeamAdmin() {
       { label: 'المفوضية', value: 'district' },
       { label: 'المنطقة', value: 'region' },
       { label: 'البلدة', value: 'town' },
+      { label: 'رخصة قيادة', value: (m) => (m.has_license ? 'نعم' : 'لا') },
+      { label: 'رقم الرخصة', value: 'license_number' },
       { label: 'ظاهر على الموقع', value: (m) => (m.visible ? 'نعم' : 'لا') },
       { label: 'ملاحظات', value: 'notes' },
     ];
@@ -201,6 +204,7 @@ export default function TeamAdmin() {
     ['المفوضية', viewed.district],
     ['المنطقة', viewed.region],
     ['البلدة', viewed.town],
+    ['رخصة القيادة', viewed.has_license ? (viewed.license_number || 'نعم') : 'لا يملك'],
   ] : [];
 
   return (
@@ -271,6 +275,19 @@ export default function TeamAdmin() {
               <label className="field"><span>المستوى العلمي</span>{text('education', { maxLength: 80, placeholder: 'مثال: جامعي، ثانوي…' })}</label>
               <label className="field"><span>الشهرة</span>{text('nickname', { maxLength: 80 })}</label>
             </div>
+          </FormSection>
+
+          <FormSection icon={Car} title="رخصة القيادة" help="للأعضاء الذين يقودون آليات الجمعية.">
+            <label className="check"><input type="checkbox" checked={!!form.has_license} onChange={(e) => set({ has_license: e.target.checked })} /> يملك رخصة قيادة</label>
+            {form.has_license && (
+              <>
+                <label className="field"><span>رقم الرخصة</span>{text('license_number', { maxLength: 50 })}</label>
+                <div className="field-row">
+                  <ImageInput label="صورة الرخصة (الوجه)" value={form.license_front_url || ''} onChange={(url) => set({ license_front_url: url })} />
+                  <ImageInput label="صورة الرخصة (الخلف)" value={form.license_back_url || ''} onChange={(url) => set({ license_back_url: url })} />
+                </div>
+              </>
+            )}
           </FormSection>
 
           <FormSection icon={Phone} title="الاتصال والسكن">
@@ -374,6 +391,22 @@ export default function TeamAdmin() {
             ))}
           </dl>
           {viewed.notes && <p className="member-note">{viewed.notes}</p>}
+          {viewed.has_license && (viewed.license_front_url || viewed.license_back_url) && (
+            <div className="license-photos">
+              {viewed.license_front_url && (
+                <a href={viewed.license_front_url} target="_blank" rel="noreferrer">
+                  <img src={viewed.license_front_url} alt="صورة الرخصة - الوجه" />
+                  <span>الرخصة - الوجه</span>
+                </a>
+              )}
+              {viewed.license_back_url && (
+                <a href={viewed.license_back_url} target="_blank" rel="noreferrer">
+                  <img src={viewed.license_back_url} alt="صورة الرخصة - الخلف" />
+                  <span>الرخصة - الخلف</span>
+                </a>
+              )}
+            </div>
+          )}
 
           <div className="member-history-head">
             <div>

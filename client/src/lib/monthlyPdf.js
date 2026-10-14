@@ -1,6 +1,9 @@
-// Monthly report as an A4 PDF. Each page is drawn on a canvas (so Arabic shaping
-// and right-to-left order come from the browser, as in the receipt), then placed
-// into a jsPDF page. Long tables continue on the next page with their header.
+// Monthly (or yearly) report as an A4 PDF. Each page is drawn on a canvas (so
+// Arabic shaping and right-to-left order come from the browser, as in the
+// receipt), then placed into a jsPDF page. Long tables continue on the next
+// page with their header. `data` with no `monthName` is treated as a full
+// year (see loadYearSummary) and only the header/footer wording changes -
+// every table and KPI reads the same either way.
 import { formatDate } from './api.js';
 import { loadBrandLogo, drawBrandLogo } from './pdfLogo.js';
 
@@ -24,7 +27,10 @@ export async function generateMonthlyPdf({ settings, data }) {
   await loadFonts();
   const orgName = settings.line1 || settings.site_name || 'جمعية الرسالة للإسعاف الصحي';
   const orgLine = [settings.line2, settings.line3].filter(Boolean).join(' — ');
-  const period = `${data.monthName} ${data.year}`;
+  const isYearly = !data.monthName;
+  const period = isYearly ? `${data.year}` : `${data.monthName} ${data.year}`;
+  const reportTitle = isYearly ? 'التقرير السنوي' : 'التقرير الشهري';
+  const periodWord = isYearly ? 'هذا العام' : 'هذا الشهر';
   const generated = formatDate(new Date().toISOString());
 
   const pages = [];
@@ -135,33 +141,40 @@ export async function generateMonthlyPdf({ settings, data }) {
   }
 
   // ----- Page 1: summary -----
-  startPage('التقرير الشهري');
-  text('ملخص الشهر', W - M, y + 30, { size: 34, weight: 900, color: C.ink, align: 'right' });
+  startPage(reportTitle);
+  text(isYearly ? 'ملخص العام' : 'ملخص الشهر', W - M, y + 30, { size: 34, weight: 900, color: C.ink, align: 'right' });
   y += 70;
 
-  const kpis = [
+  const boxW = (W - M * 2 - 3 * 24) / 4;
+  function kpiRow(items, highlightFirst) {
+    items.forEach(([label, value], i) => {
+      const x = W - M - (i + 1) * boxW - i * 24;
+      ctx.fillStyle = highlightFirst && i === 0 ? C.brand : C.soft;
+      roundRect(x, y, boxW, 170, 22);
+      ctx.fill();
+      const onDark = highlightFirst && i === 0;
+      text(String(value), x + boxW - 24, y + 90, { size: 60, weight: 900, color: onDark ? '#ffffff' : C.brand, align: 'right' });
+      text(label, x + boxW - 24, y + 140, { size: 22, weight: 700, color: onDark ? '#cfe0d4' : C.ink3, align: 'right' });
+    });
+    y += 194;
+  }
+  kpiRow([
     ['المهام المنفّذة', data.missionsTotal],
     ['المسعفون المشاركون', data.paramedics.length],
     ['الخدمات الطبية', data.servicesTotal],
     ['أنواع المهام', Object.keys(data.typeCounts).length],
-  ];
-  const boxW = (W - M * 2 - 3 * 24) / 4;
-  kpis.forEach(([label, value], i) => {
-    const x = W - M - (i + 1) * boxW - i * 24;
-    ctx.fillStyle = i === 0 ? C.brand : C.soft;
-    roundRect(x, y, boxW, 170, 22);
-    ctx.fill();
-    const onDark = i === 0;
-    text(String(value), x + boxW - 24, y + 90, { size: 60, weight: 900, color: onDark ? '#ffffff' : C.brand, align: 'right' });
-    text(label, x + boxW - 24, y + 140, { size: 22, weight: 700, color: onDark ? '#cfe0d4' : C.ink3, align: 'right' });
-  });
-  y += 230;
+  ], true);
+  kpiRow([
+    ['التبرع بالدم', data.bloodDonationsTotal],
+    ['الخدمات العينية', data.communityDonationsTotal],
+  ], false);
+  y += 36;
 
   // Mission types as horizontal bars
   const typeRows = Object.entries(data.typeCounts).sort((a, b) => b[1] - a[1]);
   sectionTitle('المهام حسب النوع');
   if (typeRows.length === 0) {
-    text('لا مهام مسجّلة لهذا الشهر.', W - M, y + 30, { size: 22, color: C.ink3, align: 'right' });
+    text(`لا مهام مسجّلة ${periodWord}.`, W - M, y + 30, { size: 22, color: C.ink3, align: 'right' });
     y += 60;
   } else {
     const max = Math.max(...typeRows.map(([, v]) => v));
@@ -189,7 +202,7 @@ export async function generateMonthlyPdf({ settings, data }) {
     ],
     data.paramedics.map((p) => [p.count, p.group_name || '—', p.name]),
     'مهام المسعفين',
-    'لا مهام مرتبطة بأسماء خلال هذا الشهر.',
+    `لا مهام مرتبطة بأسماء خلال ${periodWord}.`,
   );
 
   table(
@@ -200,7 +213,7 @@ export async function generateMonthlyPdf({ settings, data }) {
     ],
     data.serviceParamedics.map((p) => [p.count, p.group_name || '—', p.name]),
     'الخدمات الطبية حسب المسعف',
-    'لا خدمات مسجّلة لأسماء محدّدة خلال هذا الشهر.',
+    `لا خدمات مسجّلة لأسماء محدّدة خلال ${periodWord}.`,
   );
 
   table(
@@ -210,7 +223,34 @@ export async function generateMonthlyPdf({ settings, data }) {
     ],
     data.serviceTypes.map((t) => [t.count, t.name]),
     'الخدمات الطبية حسب النوع',
-    'لا خدمات مسجّلة خلال هذا الشهر.',
+    `لا خدمات مسجّلة خلال ${periodWord}.`,
+  );
+
+  table(
+    [
+      { label: 'التاريخ', width: 0.18 },
+      { label: 'الفصيلة', width: 0.14, strong: true },
+      { label: 'المستشفى', width: 0.28 },
+      { label: 'المستفيد', width: 0.2 },
+      { label: 'المتبرّع', width: 0.2 },
+    ],
+    data.bloodDonations.map((d) => [formatDate(d.donation_date), d.blood_type || '—', d.hospital || '—', d.recipient_name || '—', d.donor_name]),
+    'التبرع بالدم',
+    `لا تبرعات بالدم مسجّلة خلال ${periodWord}.`,
+  );
+
+  table(
+    [
+      { label: 'التاريخ', width: 0.16 },
+      { label: 'الكمية', width: 0.12, strong: true },
+      { label: 'الصنف', width: 0.2 },
+      { label: 'التفاصيل', width: 0.2 },
+      { label: 'المستفيد', width: 0.16 },
+      { label: 'عضو الفريق', width: 0.16 },
+    ],
+    data.communityDonations.map((d) => [formatDate(d.donation_date), d.quantity, d.item_type_name, d.item_detail || '—', d.recipient_name || '—', d.team_member_name || '—']),
+    'الخدمات العينية',
+    `لا خدمات عينية مسجّلة خلال ${periodWord}.`,
   );
 
   finishPages();
@@ -222,7 +262,7 @@ export async function generateMonthlyPdf({ settings, data }) {
     if (i > 0) pdf.addPage('a4', 'portrait');
     pdf.addImage(cv.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
   });
-  pdf.save(`تقرير-شهري-${data.monthName}-${data.year}.pdf`);
+  pdf.save(isYearly ? `تقرير-سنوي-${data.year}.pdf` : `تقرير-شهري-${data.monthName}-${data.year}.pdf`);
 }
 
 // ----- drawing helpers -----

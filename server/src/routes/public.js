@@ -21,18 +21,48 @@ router.get('/posts', wrap(async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 60);
   const category = str(req.query.category, 30);
   const typeId = Number(req.query.type) || null;
-  const rows = await query(
-    `SELECT TOP (@limit) p.id, p.title, p.category, p.summary, p.cover_url, p.event_date, p.published_at, p.pinned,
-            mt.id AS mission_type_id, mt.name AS mission_type_name, mt.color AS mission_type_color,
-            (SELECT COUNT(*) FROM dbo.PostParamedics pp WHERE pp.post_id = p.id) AS paramedic_count
-     FROM dbo.Posts p
-     LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id
-     WHERE p.status = 'published' AND (@category IS NULL OR p.category = @category)
-       AND (@typeId IS NULL OR p.mission_type_id = @typeId)
-     ORDER BY p.pinned DESC, COALESCE(p.event_date, CAST(p.published_at AS DATE)) DESC, p.id DESC`,
-    { limit, category, typeId }
-  );
-  res.json(rows);
+  const page = Math.max(Number(req.query.page) || 0, 0);
+
+  // Legacy/simple callers (no `page`) get a plain top-N array, unchanged.
+  // Paginated callers pass `page` (1-based) and get { items, total } so the
+  // page can render a page count without a second round trip.
+  if (!page) {
+    const rows = await query(
+      `SELECT TOP (@limit) p.id, p.title, p.category, p.summary, p.cover_url, p.event_date, p.published_at, p.pinned,
+              mt.id AS mission_type_id, mt.name AS mission_type_name, mt.color AS mission_type_color,
+              (SELECT COUNT(*) FROM dbo.PostParamedics pp WHERE pp.post_id = p.id) AS paramedic_count
+       FROM dbo.Posts p
+       LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id
+       WHERE p.status = 'published' AND (@category IS NULL OR p.category = @category)
+         AND (@typeId IS NULL OR p.mission_type_id = @typeId)
+       ORDER BY p.pinned DESC, COALESCE(p.event_date, CAST(p.published_at AS DATE)) DESC, p.id DESC`,
+      { limit, category, typeId }
+    );
+    return res.json(rows);
+  }
+
+  const offset = (page - 1) * limit;
+  const [rows, countRows] = await Promise.all([
+    query(
+      `SELECT p.id, p.title, p.category, p.summary, p.cover_url, p.event_date, p.published_at, p.pinned,
+              mt.id AS mission_type_id, mt.name AS mission_type_name, mt.color AS mission_type_color,
+              (SELECT COUNT(*) FROM dbo.PostParamedics pp WHERE pp.post_id = p.id) AS paramedic_count
+       FROM dbo.Posts p
+       LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id
+       WHERE p.status = 'published' AND (@category IS NULL OR p.category = @category)
+         AND (@typeId IS NULL OR p.mission_type_id = @typeId)
+       ORDER BY p.pinned DESC, COALESCE(p.event_date, CAST(p.published_at AS DATE)) DESC, p.id DESC
+       OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+      { limit, offset, category, typeId }
+    ),
+    query(
+      `SELECT COUNT(*) AS total FROM dbo.Posts p
+       WHERE p.status = 'published' AND (@category IS NULL OR p.category = @category)
+         AND (@typeId IS NULL OR p.mission_type_id = @typeId)`,
+      { category, typeId }
+    ),
+  ]);
+  res.json({ items: rows, total: countRows[0].total, page, pageSize: limit });
 }));
 
 router.get('/posts/:id', wrap(async (req, res) => {

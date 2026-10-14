@@ -1,6 +1,7 @@
 // Shared pieces for the admin list pages: summary tiles, a search and filter
 // bar, status chips, icon buttons and an empty state.
-import { Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Search, X } from 'lucide-react';
 
 export function StatTiles({ items }) {
   return (
@@ -63,7 +64,28 @@ export function EmptyPanel({ icon: Icon, title, text, action }) {
 }
 
 export function Thumb({ src, alt = '' }) {
-  return src
-    ? <img className="thumb-sq" src={src} alt={alt} loading="lazy" />
-    : <span className="thumb-sq thumb-empty" aria-hidden="true" />;
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  if (!src) return <span className="thumb-sq thumb-empty" aria-hidden="true" />;
+
+  return (
+    <>
+      <button type="button" className="thumb-sq-btn" onClick={() => setOpen(true)} aria-label={alt ? `عرض صورة ${alt}` : 'عرض الصورة'}>
+        <img className="thumb-sq" src={src} alt={alt} loading="lazy" />
+      </button>
+      {open && (
+        <div className="dialog-backdrop lightbox-backdrop" onClick={() => setOpen(false)}>
+          <button type="button" className="lightbox-close" onClick={() => setOpen(false)} aria-label="إغلاق"><X size={20} aria-hidden="true" /></button>
+          <img className="lightbox-img" src={src} alt={alt} onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </>
+  );
 }

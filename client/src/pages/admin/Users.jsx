@@ -4,7 +4,73 @@ import { useLoad } from '../../App.jsx';
 import { useAdmin } from '../../components/AdminLayout.jsx';
 import { api } from '../../lib/api.js';
 
-const EMPTY = { username: '', display_name: '', password: '', role: 'editor' };
+// Every grantable admin page, grouped the same way as the sidebar nav.
+// Keep in sync with MODULE_KEYS in server/src/routes/admin.js and the nav
+// paths (and pageKey column) in AdminLayout.jsx.
+const PAGE_GROUPS = [
+  ['المحتوى', [
+    ['posts', 'المنشورات'],
+    ['generator', 'مولّد الصور'],
+    ['gallery', 'معرض الصور'],
+    ['team', 'الفريق'],
+    ['messages', 'الرسائل'],
+  ]],
+  ['الميدان', [
+    ['mission-types', 'أنواع المهام'],
+    ['reports', 'التقارير الشهرية'],
+    ['yearly-report', 'التقرير السنوي'],
+    ['member-reports', 'تقارير المسعفين'],
+    ['service-types', 'أنواع الخدمات'],
+    ['service-logs', 'سجلّ الخدمات'],
+    ['schedule', 'جدول المناوبات'],
+  ]],
+  ['المخزون', [
+    ['inventory', 'المخزون الطبي'],
+    ['inventory-assets', 'الأصول الثابتة'],
+    ['inventory-units', 'وحدات القياس'],
+    ['inventory-categories', 'فئات المخزون'],
+    ['inventory-usage', 'سجلّ الاستخدام'],
+    ['loaned-items', 'العُهد'],
+    ['inventory-report', 'تقرير المخزون'],
+  ]],
+  ['سيارة الإسعاف', [
+    ['ambulance-finance', 'الإيرادات والمصروفات'],
+    ['ambulance-categories', 'فئات مالية السيارة'],
+    ['ambulance-assets', 'معدات السيارة'],
+  ]],
+  ['الخدمات المجتمعية', [
+    ['blood-donations', 'التبرع بالدم'],
+    ['community-donations', 'خدمات عينية'],
+    ['donation-item-types', 'أصناف الخدمات العينية'],
+  ]],
+];
+const PAGE_LABELS = Object.fromEntries(PAGE_GROUPS.flatMap(([, pages]) => pages));
+
+const EMPTY = { username: '', display_name: '', password: '', role: 'editor', permissions: [] };
+
+function togglePermission(list, key) {
+  return list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+}
+
+function PermissionPicker({ role, permissions, onToggle }) {
+  if (role === 'admin') return <p className="hint">المدير لديه صلاحية كاملة على كل الصفحات تلقائياً.</p>;
+  return (
+    <div className="perm-picker">
+      {PAGE_GROUPS.map(([group, pages]) => (
+        <div key={group} className="perm-group">
+          <p className="perm-group-title">{group}</p>
+          <div className="chip-filter" role="group" aria-label={group}>
+            {pages.map(([key, label]) => (
+              <button key={key} type="button" className={permissions.includes(key) ? 'on' : ''} aria-pressed={permissions.includes(key)} onClick={() => onToggle(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Users() {
   const { confirm, notify } = useDialog();
@@ -15,6 +81,8 @@ export default function Users() {
   const [pw, setPw] = useState(null); // { id, username, value, confirm } while the password form is open
   const [pwError, setPwError] = useState('');
   const [pwBusy, setPwBusy] = useState(false);
+  const [perm, setPerm] = useState(null); // { id, username, role, permissions } while the permissions form is open
+  const [permBusy, setPermBusy] = useState(false);
 
   async function create(e) {
     e.preventDefault();
@@ -35,6 +103,24 @@ export default function Users() {
   function openPassword(u) {
     setPwError('');
     setPw({ id: u.id, username: u.username, value: '', confirm: '' });
+  }
+
+  function openPermissions(u) {
+    setPerm({ id: u.id, username: u.username, role: u.role, permissions: u.permissions || [] });
+  }
+
+  async function savePermissions(e) {
+    e.preventDefault();
+    setPermBusy(true);
+    try {
+      await api(`/admin/users/${perm.id}`, { method: 'PUT', body: { role: perm.role, permissions: perm.permissions } });
+      setPerm(null);
+      reload();
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      setPermBusy(false);
+    }
   }
 
   async function savePassword(e) {
@@ -80,17 +166,52 @@ export default function Users() {
         </form>
       )}
 
+      {perm && (
+        <form className="card form" onSubmit={savePermissions}>
+          <h2>صلاحيات <bdi dir="ltr">{perm.username}</bdi></h2>
+          <label className="field"><span>الدور</span>
+            <select
+              value={perm.role}
+              onChange={(e) => setPerm({ ...perm, role: e.target.value })}
+              disabled={perm.id === user.id}
+            >
+              <option value="editor">محرّر</option>
+              <option value="admin">مدير</option>
+            </select>
+          </label>
+          <label className="field"><span>الصفحات المسموح الوصول إليها</span>
+            <PermissionPicker
+              role={perm.role}
+              permissions={perm.permissions}
+              onToggle={(key) => setPerm({ ...perm, permissions: togglePermission(perm.permissions, key) })}
+            />
+          </label>
+          <div className="actions">
+            <button className="btn primary" disabled={permBusy}>{permBusy ? 'جارٍ الحفظ…' : 'حفظ الصلاحيات'}</button>
+            <button type="button" className="btn" onClick={() => setPerm(null)} disabled={permBusy}>إلغاء</button>
+          </div>
+        </form>
+      )}
+
       <div className="table-wrap">
         <table>
-          <thead><tr><th>المستخدم</th><th>الاسم</th><th>الدور</th><th>الحالة</th><th></th></tr></thead>
+          <thead><tr><th>المستخدم</th><th>الاسم</th><th>الدور</th><th>الصفحات</th><th>الحالة</th><th></th></tr></thead>
           <tbody>
             {data.map((u) => (
               <tr key={u.id}>
                 <td dir="ltr">{u.username}</td>
                 <td>{u.display_name}</td>
                 <td>{u.role === 'admin' ? 'مدير' : 'محرّر'}</td>
+                <td>
+                  {u.role === 'admin'
+                    ? 'الكل'
+                    : (u.permissions?.length
+                      ? u.permissions.map((k) => PAGE_LABELS[k] || k).join('، ')
+                      : <span className="muted">لا شيء</span>)}
+                </td>
                 <td>{u.active ? 'فعّال' : 'معطّل'}</td>
                 <td className="row-actions">
+                  <button className="link" onClick={() => openPermissions(u)}>الصلاحيات</button>
                   <button className="link" onClick={() => openPassword(u)}>تغيير كلمة المرور</button>
                   {u.id !== user.id && (
                     <button className="link danger" onClick={() => update(u, { active: !u.active })}>{u.active ? 'تعطيل' : 'تفعيل'}</button>
@@ -123,6 +244,13 @@ export default function Users() {
             </select>
           </label>
         </div>
+        <label className="field"><span>الصفحات المسموح الوصول إليها</span>
+          <PermissionPicker
+            role={form.role}
+            permissions={form.permissions}
+            onToggle={(key) => setForm({ ...form, permissions: togglePermission(form.permissions, key) })}
+          />
+        </label>
         {formError && <p className="error">{formError}</p>}
         <button className="btn primary">إضافة</button>
       </form>

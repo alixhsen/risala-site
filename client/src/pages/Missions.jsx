@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Siren, ArrowLeft, Calendar, Users, Search } from 'lucide-react';
 import { useLoad } from '../App.jsx';
@@ -6,16 +6,34 @@ import { formatDate } from '../lib/api.js';
 import PostCard from '../components/PostCard.jsx';
 import TypeBadge from '../components/TypeBadge.jsx';
 import PageHeader from '../components/PageHeader.jsx';
+import Pagination from '../components/Pagination.jsx';
+
+const PAGE_SIZE = 13; // page 1: 1 featured + 12 in the grid; other pages: 13 in the grid
 
 export default function Missions() {
   const [typeId, setTypeId] = useState('');
+  const [page, setPage] = useState(1);
+  const topRef = useRef(null);
   const types = useLoad('/public/mission-types', []);
   const { data, loading, error } = useLoad(
-    `/public/posts?category=mission${typeId ? `&type=${typeId}` : ''}&limit=60`, []
+    `/public/posts?category=mission${typeId ? `&type=${typeId}` : ''}&page=${page}&limit=${PAGE_SIZE}`,
+    { items: [], total: 0 }
   );
   const activeType = types.data.find((t) => String(t.id) === typeId);
-  const [lead, ...rest] = data;
-  const count = loading ? '' : `${data.length} ${activeType ? activeType.name : 'مهمة'}${typeId ? '' : ' مسجّلة'}`;
+  const posts = data.items || [];
+  const totalPages = Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE));
+  const [lead, ...rest] = page === 1 ? posts : [null, ...posts];
+  const count = loading ? '' : `${data.total ?? 0} ${activeType ? activeType.name : 'مهمة'}${typeId ? '' : ' مسجّلة'}`;
+
+  function changeType(id) {
+    setTypeId(id);
+    setPage(1);
+  }
+
+  function changePage(p) {
+    setPage(p);
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   return (
     <>
@@ -27,17 +45,17 @@ export default function Missions() {
         count={count}
       />
 
-      <section className="wrap section tight">
+      <section className="wrap section tight" ref={topRef}>
         {types.data.length > 0 && (
           <div className="mlist-toolbar" role="group" aria-label="تصفية حسب النوع">
-            <button type="button" className={`type-filter-btn ${typeId === '' ? 'on' : ''}`} onClick={() => setTypeId('')}>الكل</button>
+            <button type="button" className={`type-filter-btn ${typeId === '' ? 'on' : ''}`} onClick={() => changeType('')}>الكل</button>
             {types.data.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 className={`type-filter-btn ${typeId === String(t.id) ? 'on' : ''}`}
                 style={{ '--dot': t.color }}
-                onClick={() => setTypeId(String(t.id))}
+                onClick={() => changeType(String(t.id))}
               >
                 <span className="type-filter-dot" aria-hidden="true" />
                 {t.name}
@@ -48,7 +66,7 @@ export default function Missions() {
 
         {error && <p className="error">{error}</p>}
 
-        {!loading && !error && data.length === 0 && (
+        {!loading && !error && posts.length === 0 && (
           <div className="mlist-empty">
             <span className="mlist-empty-icon"><Search size={26} aria-hidden="true" /></span>
             <h2>لا مهام {activeType ? `من نوع "${activeType.name}"` : 'بعد'}</h2>
@@ -76,6 +94,8 @@ export default function Missions() {
         )}
 
         {rest.length > 0 && <div className="post-grid mlist-grid">{rest.map((p) => <PostCard key={p.id} post={p} />)}</div>}
+
+        <Pagination page={page} totalPages={totalPages} onChange={changePage} />
       </section>
     </>
   );

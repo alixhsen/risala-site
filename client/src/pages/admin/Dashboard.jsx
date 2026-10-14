@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Siren, Activity, Stethoscope, Users, FileText, Mail, Package, HandCoins, WandSparkles, Newspaper, ArrowLeft, Clock } from 'lucide-react';
+import { Siren, Activity, Stethoscope, Users, FileText, Mail, Package, HandCoins, WandSparkles, Newspaper, ArrowLeft, Clock, Droplet, Gift } from 'lucide-react';
 import { useLoad } from '../../App.jsx';
 import { useAdmin } from '../../components/AdminLayout.jsx';
 import { loadYear, sumTypes } from '../../lib/monthly.js';
@@ -35,6 +35,8 @@ export default function Dashboard() {
     const focus = series[focusIndex];
     const missionsYear = series.reduce((s, m) => s + m.missionsTotal, 0);
     const servicesYear = series.reduce((s, m) => s + m.servicesTotal, 0);
+    const bloodDonationsYear = series.reduce((s, m) => s + m.bloodDonationsTotal, 0);
+    const communityDonationsYear = series.reduce((s, m) => s + m.communityDonationsTotal, 0);
     const people = new Map();
     for (const m of series) {
       for (const p of m.paramedics) {
@@ -53,6 +55,8 @@ export default function Dashboard() {
       focus,
       missionsYear,
       servicesYear,
+      bloodDonationsYear,
+      communityDonationsYear,
       activePeople: people.size,
       types: Object.entries(sumTypes(series, 'typeCounts')).sort((a, b) => b[1] - a[1]),
       monthlyMissions: series.map((m, i) => ({ label: SHORT_MONTHS[i], value: m.missionsTotal })),
@@ -66,6 +70,8 @@ export default function Dashboard() {
     { label: `مهام ${MONTHS_AR[focusIndex]}`, value: view.focus.missionsTotal, sub: 'الشهر المختار', Icon: Activity, tone: 'gold' },
     { label: 'الخدمات الطبية', value: view.servicesYear, sub: `خلال ${year}`, Icon: Stethoscope, tone: 'brand' },
     { label: 'مسعفون نشطون', value: view.activePeople, sub: `شاركوا في ${year}`, Icon: Users, tone: 'gold' },
+    { label: 'التبرع بالدم', value: view.bloodDonationsYear, sub: `خلال ${year}`, Icon: Droplet, tone: 'brand' },
+    { label: 'الخدمات العينية', value: view.communityDonationsYear, sub: `خلال ${year}`, Icon: Gift, tone: 'gold' },
   ] : null;
 
   const alerts = [
@@ -96,7 +102,7 @@ export default function Dashboard() {
       {error && <p className="error">{error}</p>}
 
       <div className="kpi-grid">
-        {(kpis || Array.from({ length: 4 })).map((k, i) => (
+        {(kpis || Array.from({ length: 6 })).map((k, i) => (
           <article key={i} className={`kpi kpi-${k?.tone || 'brand'}`}>
             {k ? (
               <>
@@ -197,6 +203,8 @@ export default function Dashboard() {
               <div><dt>المهام</dt><dd>{view.focus.missionsTotal}</dd></div>
               <div><dt>المسعفون</dt><dd>{view.focus.paramedics.length}</dd></div>
               <div><dt>الخدمات</dt><dd>{view.focus.servicesTotal}</dd></div>
+              <div><dt>التبرع بالدم</dt><dd>{view.focus.bloodDonationsTotal}</dd></div>
+              <div><dt>الخدمات العينية</dt><dd>{view.focus.communityDonationsTotal}</dd></div>
             </dl>
           ) : <div className="chart-loading" />}
           <Link className="btn primary block" to={`/admin/reports?year=${year}&month=${focusIndex + 1}`}>

@@ -70,7 +70,7 @@ export default function Posts() {
                   <td>{p.cover_url ? <img className="thumb" src={p.cover_url} alt="" /> : <div className="thumb" />}</td>
                   <td>
                     <Link to={`/admin/posts/${p.id}`}>{p.title}</Link>
-                    {p.pinned && <span className="pin-badge"><Pin size={11} aria-hidden="true" /> مثبّت</span>}
+                    {!!p.pinned && <span className="pin-badge"><Pin size={11} aria-hidden="true" /> مثبّت</span>}
                     <small>{p.author}</small>
                   </td>
                   <td>

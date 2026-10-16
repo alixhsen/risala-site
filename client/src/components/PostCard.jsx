@@ -11,7 +11,7 @@ export default function PostCard({ post }) {
     <Link ref={ref} to={`/${base}/${post.id}`} className="post-card reveal">
       <div className="post-cover">
         {post.cover_url ? <img src={post.cover_url} alt="" loading="lazy" /> : <div className="cover-empty" />}
-        {post.pinned && <span className="pin-flag"><Pin size={12} aria-hidden="true" /> مثبّت</span>}
+        {!!post.pinned && <span className="pin-flag"><Pin size={12} aria-hidden="true" /> مثبّت</span>}
         {post.category === 'mission' && post.mission_type_name
           ? <TypeBadge name={post.mission_type_name} color={post.mission_type_color} />
           : <span className="tag">{CATEGORIES[post.category] || 'نشاط'}</span>}

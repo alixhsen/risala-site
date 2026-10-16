@@ -37,7 +37,7 @@ export default function DetailPage({
     <article className="pd">
       <div className="wrap pd-topbar">
         <Link to={backTo} className="pd-back"><ArrowRight size={15} aria-hidden="true" /> {backLabel}</Link>
-        {post.pinned && <span className="pd-pinned"><Pin size={12} aria-hidden="true" /> مثبّت</span>}
+        {!!post.pinned && <span className="pd-pinned"><Pin size={12} aria-hidden="true" /> مثبّت</span>}
       </div>
 
       <div className="wrap pd-head">

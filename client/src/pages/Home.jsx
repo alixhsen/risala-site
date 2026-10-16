@@ -167,7 +167,7 @@ export default function Home() {
                     </span>
                     <span className="mission-row-text">
                       <small>{m.mission_type_name || 'مهمة'} · {formatDate(m.event_date || m.published_at)}</small>
-                      <strong>{m.pinned && <Pin size={13} className="mission-row-pin" aria-hidden="true" />}{m.title}</strong>
+                      <strong>{!!m.pinned && <Pin size={13} className="mission-row-pin" aria-hidden="true" />}{m.title}</strong>
                     </span>
                     <ArrowLeft className="mission-row-arrow" size={18} aria-hidden="true" />
                   </Link>

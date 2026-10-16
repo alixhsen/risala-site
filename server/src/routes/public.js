@@ -98,6 +98,28 @@ router.get('/team', wrap(async (req, res) => {
   ));
 }));
 
+router.get('/shifts', wrap(async (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const shifts = await query(
+    `SELECT id, shift_date, start_time, end_time FROM dbo.Shifts
+     WHERE shift_date >= @today ORDER BY shift_date, start_time LIMIT 14`,
+    { today }
+  );
+  const members = shifts.length
+    ? await query(`
+        SELECT sm.shift_id, tm.id, tm.name, tm.photo_url
+        FROM dbo.ShiftMembers sm JOIN dbo.TeamMembers tm ON tm.id = sm.team_member_id
+        WHERE sm.shift_id IN (${shifts.map((s) => s.id).join(',')}) AND tm.visible = 1
+        ORDER BY tm.sort_order, tm.id`)
+    : [];
+  const byShift = new Map();
+  for (const m of members) {
+    if (!byShift.has(m.shift_id)) byShift.set(m.shift_id, []);
+    byShift.get(m.shift_id).push({ id: m.id, name: m.name, photo_url: m.photo_url });
+  }
+  res.json(shifts.map((s) => ({ ...s, members: byShift.get(s.id) || [] })));
+}));
+
 router.get('/gallery', wrap(async (req, res) => {
   res.json(await query(
     `SELECT id, url, caption, album

@@ -4,7 +4,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import {
   Ambulance, LifeBuoy, Megaphone, Phone, HeartHandshake, Quote, Calendar, ArrowLeft,
   Droplet, MessageCircle, Siren, BarChart3, Users, Newspaper, Camera, HeartPulse,
-  PhoneCall, Tag, Users2, ClipboardList, ShieldCheck, Pin,
+  PhoneCall, Tag, Users2, ClipboardList, ShieldCheck, Pin, Clock,
 } from 'lucide-react';
 import { useLoad, useSettings } from '../App.jsx';
 import PostCard from '../components/PostCard.jsx';
@@ -17,7 +17,7 @@ import GalleryTile from '../components/GalleryTile.jsx';
 import Lightbox from '../components/Lightbox.jsx';
 import useReveal from '../hooks/useReveal.js';
 import useCountUp from '../hooks/useCountUp.js';
-import { formatDate } from '../lib/api.js';
+import { formatDate, formatWeekday, formatDayMonth, formatTime } from '../lib/api.js';
 import { waLink } from '../lib/links.js';
 import { LOGO } from '../lib/brand.js';
 
@@ -59,6 +59,36 @@ function ServiceCard({ icon: Icon, title, text, i }) {
   );
 }
 
+const MAX_SHIFT_AVATARS = 5;
+
+function ShiftDay({ shift, isToday }) {
+  const ref = useReveal();
+  const shown = shift.members.slice(0, MAX_SHIFT_AVATARS);
+  const extra = shift.members.length - shown.length;
+  return (
+    <article ref={ref} className={`shift-card reveal${isToday ? ' is-today' : ''}`}>
+      {isToday && <span className="shift-today-badge">اليوم</span>}
+      <span className="shift-weekday">{formatWeekday(shift.shift_date)}</span>
+      <span className="shift-date">{formatDayMonth(shift.shift_date)}</span>
+      <span className="shift-time"><Clock size={13} aria-hidden="true" /> {formatTime(shift.start_time)} – {formatTime(shift.end_time)}</span>
+      {shift.members.length > 0 ? (
+        <div className="shift-avatars">
+          {shown.map((m) => (
+            <span key={m.id} className="shift-avatar" title={m.name}>
+              {m.photo_url
+                ? <img src={m.photo_url} alt={m.name} loading="lazy" />
+                : <span className="shift-avatar-init" aria-hidden="true">{m.name.trim().charAt(0)}</span>}
+            </span>
+          ))}
+          {extra > 0 && <span className="shift-avatar-more">+{extra}</span>}
+        </div>
+      ) : (
+        <span className="shift-empty">لم يُحدَّد الفريق بعد</span>
+      )}
+    </article>
+  );
+}
+
 function ImpactStat({ value, label, Icon, i }) {
   const [ref, display] = useCountUp(value);
   return (
@@ -77,6 +107,8 @@ export default function Home() {
   const news = useLoad('/public/posts?category=news&limit=4', []);
   const gallery = useLoad('/public/gallery', []);
   const team = useLoad('/public/team', []);
+  const shifts = useLoad('/public/shifts', []);
+  const todayIso = new Date().toISOString().slice(0, 10);
   const [featured, ...moreMissions] = missions.data;
   const featuredRef = useReveal();
   const quoteRef = useReveal();
@@ -225,6 +257,20 @@ export default function Home() {
             </div>
             <div className="team-band-grid">
               {team.data.map((m, i) => <TeamCard key={m.id} member={m} i={i} />)}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ================= SHIFT SCHEDULE ================= */}
+      {shifts.data.length > 0 && (
+        <section className="section" id="schedule">
+          <div className="wrap">
+            <SecHead icon={Clock} kicker="التغطية الميدانية" title="جدول المناوبات" lead="فريق جاهز على مدار الأسبوع للاستجابة الفورية عند الحاجة." />
+            <div className="shift-strip">
+              {shifts.data.map((s) => (
+                <ShiftDay key={s.id} shift={s} isToday={s.shift_date.slice(0, 10) === todayIso} />
+              ))}
             </div>
           </div>
         </section>

@@ -78,3 +78,27 @@ export const formatDate = (value) => {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ar-LB', { year: 'numeric', month: 'long', day: 'numeric' });
 };
+
+export const formatWeekday = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ar-LB', { weekday: 'long' });
+};
+
+export const formatDayMonth = (value) => {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ar-LB', { day: 'numeric', month: 'long' });
+};
+
+// A shift's start/end time comes back as a full ISO datetime
+// ("1970-01-01T20:30:00.000Z") since it's stored as a TIME-only column -
+// pull the HH:MM out and render it as "٨:٣٠ م" / "٨:٣٠ ص".
+export const formatTime = (value) => {
+  const m = String(value || '').match(/(\d{2}):(\d{2})/);
+  if (!m) return '';
+  const h = Number(m[1]);
+  const period = h < 12 ? 'ص' : 'م';
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${m[2]} ${period}`;
+};

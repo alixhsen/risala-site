@@ -4,6 +4,7 @@ import { toCsv, downloadCsv } from '../../lib/csv.js';
 import { useDialog } from '../../components/admin/Dialog.jsx';
 import { useLoad } from '../../App.jsx';
 import ImageInput from '../../components/ImageInput.jsx';
+import Lightbox from '../../components/Lightbox.jsx';
 import { AdminHead, FormSection, SaveBar } from '../../components/admin/AdminPage.jsx';
 import { StatTiles, FilterBar, IconButton, EmptyPanel, Thumb } from '../../components/admin/DataPage.jsx';
 import { api, formatDate, MONTHS_AR } from '../../lib/api.js';
@@ -63,6 +64,7 @@ export default function TeamAdmin() {
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [viewId, setViewId] = useState(null);
+  const [viewer, setViewer] = useState(null);
   const now = new Date();
   const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [pages, setPages] = useState({ m: 1, s: 1 });
@@ -95,6 +97,12 @@ export default function TeamAdmin() {
   const withAge = members.filter((m) => m.age !== null);
   const avgAge = withAge.length ? Math.round(withAge.reduce((s, m) => s + m.age, 0) / withAge.length) : null;
   const viewed = members.find((m) => m.id === viewId) || null;
+  const photos = viewed ? [
+    viewed.photo_url && { key: 'photo', url: viewed.photo_url, caption: viewed.name },
+    viewed.license_front_url && { key: 'front', url: viewed.license_front_url, caption: 'الرخصة - الوجه' },
+    viewed.license_back_url && { key: 'back', url: viewed.license_back_url, caption: 'الرخصة - الخلف' },
+  ].filter(Boolean) : [];
+  useEffect(() => setViewer(null), [viewId]);
   const hist = viewed && history.id === viewed.id ? history.data : null;
   const yearOptions = [...new Set([period.year, now.getFullYear(), ...(history.data?.years || [])])].sort((a, b) => b - a);
 
@@ -375,7 +383,9 @@ export default function TeamAdmin() {
           <header className="member-detail-head">
             <div className="member-detail-who">
               {viewed.photo_url
-                ? <img className="member-photo" src={viewed.photo_url} alt="" />
+                ? <button type="button" className="member-photo-btn" onClick={() => setViewer(photos.findIndex((p) => p.key === 'photo'))}>
+                    <img className="member-photo" src={viewed.photo_url} alt="" />
+                  </button>
                 : <span className="member-photo member-photo-init">{viewed.name.trim().charAt(0)}</span>}
               <div>
                 <h2>{viewed.name}</h2>
@@ -394,19 +404,20 @@ export default function TeamAdmin() {
           {viewed.has_license && (viewed.license_front_url || viewed.license_back_url) && (
             <div className="license-photos">
               {viewed.license_front_url && (
-                <a href={viewed.license_front_url} target="_blank" rel="noreferrer">
+                <button type="button" onClick={() => setViewer(photos.findIndex((p) => p.key === 'front'))}>
                   <img src={viewed.license_front_url} alt="صورة الرخصة - الوجه" />
                   <span>الرخصة - الوجه</span>
-                </a>
+                </button>
               )}
               {viewed.license_back_url && (
-                <a href={viewed.license_back_url} target="_blank" rel="noreferrer">
+                <button type="button" onClick={() => setViewer(photos.findIndex((p) => p.key === 'back'))}>
                   <img src={viewed.license_back_url} alt="صورة الرخصة - الخلف" />
                   <span>الرخصة - الخلف</span>
-                </a>
+                </button>
               )}
             </div>
           )}
+          <Lightbox items={photos} index={viewer} onClose={() => setViewer(null)} onChange={setViewer} />
 
           <div className="member-history-head">
             <div>

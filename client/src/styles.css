@@ -1289,6 +1289,7 @@ main { min-height: 60vh; }
 .member-detail-who h2 { margin: 0 0 4px; font-size: 22px; }
 .member-detail-who p { margin: 0; color: var(--ink-3); font-size: 14px; font-weight: 700; }
 .member-photo { width: 72px; height: 72px; flex: none; object-fit: cover; border-radius: 999px; box-shadow: 0 0 0 2px var(--gold); }
+.member-photo-btn { padding: 0; border: none; background: none; cursor: zoom-in; flex: none; border-radius: 999px; }
 .member-photo-init { display: grid; place-items: center; background: var(--brand-tint); color: var(--brand-link); font-size: 28px; font-weight: 900; }
 .member-lists { display: grid; gap: 14px; }
 @media (min-width: 900px) { .member-lists { grid-template-columns: 1fr 1fr; } }
@@ -1866,9 +1867,9 @@ main { min-height: 60vh; }
 .admin-photos figure img, .admin-photos figure video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: var(--line); }
 
 .license-photos { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; }
-.license-photos a { display: grid; gap: 6px; width: 160px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.license-photos button { display: grid; gap: 6px; width: 160px; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--ink-2); padding: 0; border: none; background: none; cursor: zoom-in; font-family: inherit; }
 .license-photos img { width: 100%; aspect-ratio: 8 / 5; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); }
-.license-photos a:hover img { border-color: var(--brand-link); }
+.license-photos button:hover img { border-color: var(--brand-link); }
 .media-video video { aspect-ratio: 4 / 3; }
 
 .image-input { gap: 8px; }

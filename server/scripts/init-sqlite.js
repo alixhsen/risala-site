@@ -136,6 +136,32 @@ function seedDefaults(db) {
       DEFAULT_DONATION_ITEM_TYPES.map((name, i) => ({ name, sort_order: i })));
     console.log('DonationItemTypes: seeded defaults.');
   }
+
+  // Copies server/seed-images/* into server/uploads/ as seed-<file>, so the
+  // logo_url/hero_url this function just seeded above (and GalleryImages,
+  // below) point at files that actually exist - without this, a fresh
+  // install shows broken images everywhere until someone uploads real ones.
+  const seedDir = path.join(__dirname, '..', 'seed-images');
+  const uploadDir = path.join(__dirname, '..', 'uploads');
+  fs.mkdirSync(uploadDir, { recursive: true });
+  const seedFiles = fs.existsSync(seedDir) ? fs.readdirSync(seedDir) : [];
+  let copied = 0;
+  for (const file of seedFiles) {
+    const target = path.join(uploadDir, `seed-${file}`);
+    if (!fs.existsSync(target)) {
+      fs.copyFileSync(path.join(seedDir, file), target);
+      copied++;
+    }
+  }
+  if (copied) console.log(`Seed images: copied ${copied} file(s) into uploads/.`);
+
+  if (isEmpty(db, 'GalleryImages')) {
+    const jpgs = seedFiles.filter((f) => f.endsWith('.jpg'));
+    if (jpgs.length) {
+      insertMany(db, 'GalleryImages', ['url'], jpgs.map((f) => ({ url: `/uploads/seed-${f}` })));
+      console.log('GalleryImages: seeded defaults.');
+    }
+  }
 }
 
 // Without this, a fresh database has zero rows in Users and nobody can log

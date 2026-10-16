@@ -138,6 +138,20 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ================= SHIFT SCHEDULE ================= */}
+      {shifts.data.length > 0 && (
+        <section className="section soft" id="schedule">
+          <div className="wrap">
+            <SecHead icon={Clock} kicker="التغطية الميدانية" title="جدول المناوبات" lead="فريق جاهز على مدار الأسبوع للاستجابة الفورية عند الحاجة." />
+            <div className="shift-strip">
+              {shifts.data.map((s) => (
+                <ShiftDay key={s.id} shift={s} isToday={s.shift_date.slice(0, 10) === todayIso} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ================= QUOTE ================= */}
       {settings.hero_quote && (
         <section className="quote-band">
@@ -257,20 +271,6 @@ export default function Home() {
             </div>
             <div className="team-band-grid">
               {team.data.map((m, i) => <TeamCard key={m.id} member={m} i={i} />)}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ================= SHIFT SCHEDULE ================= */}
-      {shifts.data.length > 0 && (
-        <section className="section" id="schedule">
-          <div className="wrap">
-            <SecHead icon={Clock} kicker="التغطية الميدانية" title="جدول المناوبات" lead="فريق جاهز على مدار الأسبوع للاستجابة الفورية عند الحاجة." />
-            <div className="shift-strip">
-              {shifts.data.map((s) => (
-                <ShiftDay key={s.id} shift={s} isToday={s.shift_date.slice(0, 10) === todayIso} />
-              ))}
             </div>
           </div>
         </section>

@@ -12,5 +12,5 @@ if (fs.existsSync(envPath)) {
   const secret = crypto.randomBytes(48).toString('hex');
   const text = fs.readFileSync(examplePath, 'utf8').replace(/^JWT_SECRET=.*$/m, `JWT_SECRET=${secret}`);
   fs.writeFileSync(envPath, text);
-  console.log('Created server/.env. Now set DB_USER / DB_PASSWORD in it, then run: npm run db:init');
+  console.log('Created server/.env. Now run: npm run db:init');
 }

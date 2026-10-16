@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { LogIn, User, Lock, Eye, EyeOff, ShieldCheck, Activity, BarChart3, ArrowLeft, AlertCircle } from 'lucide-react';
 import { api } from '../../lib/api.js';
 import { useSettings } from '../../App.jsx';
 import { LOGO } from '../../lib/brand.js';
 
-// Two sides: a form panel, and a panel showing the team's own field photo
-// (dark-washed for legibility) with the large logo overlaid on it.
+const FEATURES = [
+  [ShieldCheck, 'وصول آمن لكل عضو حسب صلاحياته'],
+  [Activity, 'متابعة المهام والخدمات الميدانية لحظة بلحظة'],
+  [BarChart3, 'تقارير شهرية وسنوية جاهزة للمشاركة'],
+];
+
+// Two sides: a branded panel (team photo, logo, a short pitch for the admin
+// panel) and a plain, focused sign-in form - the panel collapses to a slim
+// header on narrow screens so the form stays front and center.
 export default function Login() {
   const navigate = useNavigate();
   const { settings } = useSettings();
@@ -16,6 +23,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const logo = settings.logo_url || LOGO;
   const name = settings.line1 || settings.site_name;
+  const identity = [settings.line2, settings.line3].filter(Boolean).join(' — ');
 
   async function submit(e) {
     e.preventDefault();
@@ -37,16 +45,38 @@ export default function Login() {
         {settings.hero_url && (
           <div className="login-brand-photo" aria-hidden="true">
             <img src={settings.hero_url} alt="" />
-            <div className="login-brand-shade" />
           </div>
         )}
-        <span className="login-brand-mark"><img src={logo} alt={name} /></span>
-        <strong className="login-brand-name">{name}</strong>
+        <div className="login-brand-texture" aria-hidden="true" />
+        <div className="login-brand-shade" aria-hidden="true" />
+
+        <div className="login-brand-top">
+          <span className="login-brand-mark"><img src={logo} alt="" /></span>
+          <div>
+            <strong className="login-brand-name">{name}</strong>
+            {identity && <span className="login-brand-identity">{identity}</span>}
+          </div>
+        </div>
+
+        <div className="login-brand-mid">
+          <h2>مركز الإدارة</h2>
+          <p>كل ما يحتاجه الفريق لإدارة المهام والخدمات والمحتوى من مكان واحد.</p>
+          <ul className="login-features">
+            {FEATURES.map(([Icon, text]) => (
+              <li key={text}><Icon size={18} aria-hidden="true" /> {text}</li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="login-brand-foot">© {new Date().getFullYear()} {name}</p>
       </aside>
 
       <div className="login-center">
+        <span className="login-mobile-mark"><img src={logo} alt="" /></span>
+
         <form className="login-card" onSubmit={submit}>
           <div className="login-card-head">
+            <p className="login-kicker">مركز الإدارة</p>
             <h1>تسجيل الدخول</h1>
             <p className="hint">أدخل اسم المستخدم وكلمة المرور الخاصة بحسابك.</p>
           </div>
@@ -55,7 +85,7 @@ export default function Login() {
             <div className="login-input">
               <User size={16} aria-hidden="true" />
               <input
-                dir="ltr" autoComplete="username" required
+                dir="ltr" autoComplete="username" required autoFocus
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
               />
@@ -81,14 +111,16 @@ export default function Login() {
             </div>
           </label>
 
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <p className="login-error" role="alert"><AlertCircle size={16} aria-hidden="true" /> {error}</p>}
 
-          <button className="btn primary block" disabled={busy}>
+          <button className="btn primary block login-submit" disabled={busy}>
             <LogIn size={17} aria-hidden="true" /> {busy ? 'جارٍ الدخول…' : 'دخول'}
           </button>
+
+          <a className="login-back" href="/"><ArrowLeft size={14} aria-hidden="true" /> العودة إلى الموقع</a>
         </form>
 
-        <p className="login-foot">© {new Date().getFullYear()} {name}</p>
+        <p className="login-foot">© {new Date().getFullYear()} {name} — جميع الحقوق محفوظة</p>
       </div>
     </div>
   );

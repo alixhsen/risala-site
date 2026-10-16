@@ -33,6 +33,8 @@ import ScheduleAdmin from './pages/admin/ScheduleAdmin.jsx';
 import BloodDonationsAdmin from './pages/admin/BloodDonationsAdmin.jsx';
 import CommunityDonationsAdmin from './pages/admin/CommunityDonationsAdmin.jsx';
 import DonationItemTypesAdmin from './pages/admin/DonationItemTypesAdmin.jsx';
+import DocumentsAdmin from './pages/admin/DocumentsAdmin.jsx';
+import DocumentFill from './pages/admin/DocumentFill.jsx';
 import UsageAdmin from './pages/admin/UsageAdmin.jsx';
 import LoanedItemsAdmin from './pages/admin/LoanedItemsAdmin.jsx';
 import ServiceTypesAdmin from './pages/admin/ServiceTypesAdmin.jsx';
@@ -110,6 +112,8 @@ export default function App() {
           <Route path="blood-donations" element={<BloodDonationsAdmin />} />
           <Route path="community-donations" element={<CommunityDonationsAdmin />} />
           <Route path="donation-item-types" element={<DonationItemTypesAdmin />} />
+          <Route path="documents" element={<DocumentsAdmin />} />
+          <Route path="documents/fill/:templateId" element={<DocumentFill />} />
           <Route path="team" element={<TeamAdmin />} />
           <Route path="gallery" element={<GalleryAdmin />} />
           <Route path="generator" element={<Generator />} />

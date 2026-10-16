@@ -11,14 +11,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const { requireAuth, requireCsrfHeader } = require('./auth');
-const { getPool, query } = require('./db');
-
-// Same ALTER as database/schema.sql (and just as idempotent) - applied here
-// too so this boot picks it up without a separate `npm run db:init` pass.
-async function migrate() {
-  await query(`IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Users') AND name = 'permissions')
-    ALTER TABLE dbo.Users ADD permissions NVARCHAR(MAX) NULL`);
-}
+const { getPool } = require('./db');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
@@ -55,16 +48,19 @@ app.use((err, req, res, next) => {
   }
   if (err.status && err.status < 500) return res.status(err.status).json({ error: err.message });
   console.error(err);
-  const dbDown = ['ESOCKET', 'ELOGIN', 'ETIMEOUT', 'ECONNCLOSED', 'EINSTLOOKUP'].includes(err.code);
+  // db.js tags a thrown SQLite error with .kind = 'unavailable' for
+  // infrastructure-level failures (disk I/O, locked/corrupt/missing file) -
+  // as opposed to 'unique_violation'/'fk_violation', which mean the
+  // connection is fine and the route handler should have already turned it
+  // into a 409 (bad request data is never a 503).
+  const dbDown = err.kind === 'unavailable';
   res.status(dbDown ? 503 : 500).json({ error: dbDown ? 'تعذر الاتصال بقاعدة البيانات' : 'حدث خطأ في الخادم' });
 });
 
 app.listen(PORT, () => {
   console.log(`API running on http://localhost:${PORT}`);
   getPool()
-    .then(async () => {
-      console.log('Connected to SQL Server.');
-      try { await migrate(); } catch (err) { console.error('Migration failed:', err.message); }
-    })
-    .catch((err) => console.error(`Could not connect to SQL Server: ${err.message}\nCheck the DB_ settings in server/.env.`));
+    .then(() => console.log('Connected to the database.'))
+    .catch((err) => console.error(`Could not open the database: ${err.message}\nRun "npm run db:init" first.`));
 });
+

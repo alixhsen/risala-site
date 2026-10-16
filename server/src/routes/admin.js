@@ -10,6 +10,8 @@ const bcrypt = require('bcryptjs');
 const { query } = require('../db');
 const { adminOnly, requireModule } = require('../auth');
 const { wrap, str, uploadUrl, httpUrl, dateOnly, timeOnly, idParam, intList } = require('../util');
+const { listTemplates } = require('../documentTemplates');
+const { renderDocx } = require('../docTemplates');
 
 const router = express.Router();
 const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
@@ -90,6 +92,7 @@ router.use('/blood-donations', requireModule('blood-donations'));
 // Donation item types feed community donations' item picker too.
 router.use('/donation-item-types', requireModule(['community-donations', 'donation-item-types']));
 router.use('/community-donations', requireModule('community-donations'));
+router.use('/document-templates', requireModule('documents'));
 
 // ---------- dashboard ----------
 router.get('/stats', wrap(async (req, res) => {
@@ -99,17 +102,17 @@ router.get('/stats', wrap(async (req, res) => {
       (SELECT COUNT(*) FROM dbo.Posts WHERE status = 'pending')   AS pending,
       (SELECT COUNT(*) FROM dbo.Posts WHERE status = 'draft')     AS drafts,
       (SELECT COUNT(*) FROM dbo.Posts WHERE status = 'published' AND category = 'mission'
-        AND YEAR(event_date) = YEAR(SYSUTCDATETIME()) AND MONTH(event_date) = MONTH(SYSUTCDATETIME())) AS missionsThisMonth,
+        AND strftime('%Y-%m', event_date) = strftime('%Y-%m', 'now')) AS missionsThisMonth,
       (SELECT COUNT(*) FROM dbo.TeamMembers)                      AS team,
       (SELECT COUNT(*) FROM dbo.GalleryImages)                    AS gallery,
       (SELECT COUNT(*) FROM dbo.Messages WHERE is_read = 0)       AS unread,
       (SELECT COUNT(*) FROM dbo.InventoryItems WHERE expiry_date IS NOT NULL
-        AND expiry_date <= DATEADD(day, 30, CAST(SYSUTCDATETIME() AS DATE)))  AS expiringSoon,
+        AND expiry_date <= date('now', '+30 days'))  AS expiringSoon,
       (SELECT COUNT(*) FROM dbo.LoanedItems WHERE status = 'out')  AS itemsOnLoan,
       (SELECT COUNT(*) FROM dbo.BloodDonations
-        WHERE YEAR(donation_date) = YEAR(SYSUTCDATETIME()) AND MONTH(donation_date) = MONTH(SYSUTCDATETIME())) AS bloodDonationsThisMonth,
+        WHERE strftime('%Y-%m', donation_date) = strftime('%Y-%m', 'now')) AS bloodDonationsThisMonth,
       (SELECT COUNT(*) FROM dbo.CommunityDonations
-        WHERE YEAR(donation_date) = YEAR(SYSUTCDATETIME()) AND MONTH(donation_date) = MONTH(SYSUTCDATETIME())) AS communityDonationsThisMonth`);
+        WHERE strftime('%Y-%m', donation_date) = strftime('%Y-%m', 'now')) AS communityDonationsThisMonth`);
   res.json(row);
 }));
 
@@ -201,7 +204,7 @@ router.post('/posts', wrap(async (req, res) => {
     INSERT INTO dbo.Posts (title, category, mission_type_id, summary, body, cover_url, event_date, status, created_by, published_at)
     OUTPUT INSERTED.id
     VALUES (@title, @category, @mission_type_id, @summary, @body, @cover_url, @event_date, @status, @uid,
-            CASE WHEN @status = 'published' THEN SYSUTCDATETIME() END)`,
+            CASE WHEN @status = 'published' THEN datetime('now') END)`,
     { ...p, status, uid: req.user.id });
   await replaceImages(row.id, req.body.images);
   await replaceParamedics(row.id, req.body.paramedic_ids);
@@ -222,8 +225,8 @@ router.put('/posts/:id', wrap(async (req, res) => {
   await query(`
     UPDATE dbo.Posts SET title = @title, category = @category, mission_type_id = @mission_type_id,
       summary = @summary, body = @body, cover_url = @cover_url, event_date = @event_date, status = @status,
-      updated_at = SYSUTCDATETIME(),
-      published_at = CASE WHEN @status = 'published' THEN COALESCE(published_at, SYSUTCDATETIME()) ELSE NULL END
+      updated_at = datetime('now'),
+      published_at = CASE WHEN @status = 'published' THEN COALESCE(published_at, datetime('now')) ELSE NULL END
     WHERE id = @id`, { ...p, status, id });
   await replaceImages(id, req.body.images);
   await replaceParamedics(id, req.body.paramedic_ids);
@@ -253,7 +256,7 @@ router.post('/mission-types', adminOnly, wrap(async (req, res) => {
     );
     res.status(201).json({ id: row.id });
   } catch (err) {
-    if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'هذا النوع موجود مسبقاً' });
+    if (err.kind === 'unique_violation') return res.status(409).json({ error: 'هذا النوع موجود مسبقاً' });
     throw err;
   }
 }));
@@ -289,7 +292,7 @@ router.get('/reports/paramedics', adminOnly, wrap(async (req, res) => {
     `SELECT p.id, p.title, p.event_date, mt.name AS type_name
      FROM dbo.Posts p LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id
      WHERE p.category = 'mission' AND p.status = 'published'
-       AND YEAR(p.event_date) = @year AND MONTH(p.event_date) = @month
+       AND CAST(strftime('%Y', p.event_date) AS INTEGER) = @year AND CAST(strftime('%m', p.event_date) AS INTEGER) = @month
      ORDER BY p.event_date`,
     { year, month }
   );
@@ -389,8 +392,8 @@ router.get('/team/:id/history', wrap(async (req, res) => {
   const month = req.query.month === undefined ? now.getMonth() + 1 : Math.min(Math.max(Number(req.query.month) || 0, 0), 12);
   const pageOf = (v) => Math.max(1, Number.parseInt(v, 10) || 1);
 
-  const mWhere = `YEAR(p.event_date) = @year${month ? ' AND MONTH(p.event_date) = @month' : ''}`;
-  const sWhere = `YEAR(l.service_date) = @year${month ? ' AND MONTH(l.service_date) = @month' : ''}`;
+  const mWhere = `CAST(strftime('%Y', p.event_date) AS INTEGER) = @year${month ? " AND CAST(strftime('%m', p.event_date) AS INTEGER) = @month" : ''}`;
+  const sWhere = `CAST(strftime('%Y', l.service_date) AS INTEGER) = @year${month ? " AND CAST(strftime('%m', l.service_date) AS INTEGER) = @month" : ''}`;
   const period = { id, year, month };
 
   const [mCount] = await query(
@@ -399,7 +402,7 @@ router.get('/team/:id/history', wrap(async (req, res) => {
     period
   );
   const [sCount] = await query(
-    `SELECT COUNT(*) AS n, ISNULL(SUM(l.quantity), 0) AS qty
+    `SELECT COUNT(*) AS n, COALESCE(SUM(l.quantity), 0) AS qty
      FROM dbo.ServiceLogs l WHERE l.team_member_id = @id AND ${sWhere}`,
     period
   );
@@ -430,11 +433,11 @@ router.get('/team/:id/history', wrap(async (req, res) => {
 
   // Every year this member has any record in, so the year picker only offers real periods.
   const yearRows = await query(
-    `SELECT DISTINCT YEAR(p.event_date) AS y FROM dbo.PostParamedics pp
+    `SELECT DISTINCT CAST(strftime('%Y', p.event_date) AS INTEGER) AS y FROM dbo.PostParamedics pp
        JOIN dbo.Posts p ON p.id = pp.post_id
        WHERE pp.team_member_id = @id AND p.category = 'mission' AND p.event_date IS NOT NULL
      UNION
-     SELECT DISTINCT YEAR(service_date) AS y FROM dbo.ServiceLogs WHERE team_member_id = @id
+     SELECT DISTINCT CAST(strftime('%Y', service_date) AS INTEGER) AS y FROM dbo.ServiceLogs WHERE team_member_id = @id
      ORDER BY y DESC`,
     { id }
   );
@@ -514,16 +517,15 @@ router.put('/settings', adminOnly, wrap(async (req, res) => {
   for (const k of LINK_KEYS) if (k in req.body) values[k] = httpUrl(req.body[k]);
   for (const [k, v] of Object.entries(values)) {
     await query(`
-      MERGE dbo.Settings AS t USING (SELECT @k AS [key]) AS s ON t.[key] = s.[key]
-      WHEN MATCHED THEN UPDATE SET value = @v
-      WHEN NOT MATCHED THEN INSERT ([key], value) VALUES (@k, @v);`, { k, v });
+      INSERT INTO dbo.Settings ([key], value) VALUES (@k, @v)
+      ON CONFLICT([key]) DO UPDATE SET value = excluded.value`, { k, v });
   }
   res.json({ ok: true });
 }));
 
 // ---------- messages ----------
 router.get('/messages', adminOnly, wrap(async (req, res) => {
-  res.json(await query('SELECT TOP (500) * FROM dbo.Messages ORDER BY created_at DESC'));
+  res.json(await query('SELECT * FROM dbo.Messages ORDER BY created_at DESC LIMIT 500'));
 }));
 
 router.put('/messages/:id', adminOnly, wrap(async (req, res) => {
@@ -547,6 +549,7 @@ const MODULE_KEYS = [
   'inventory', 'inventory-assets', 'inventory-units', 'inventory-categories', 'inventory-usage', 'loaned-items', 'inventory-report',
   'ambulance-finance', 'ambulance-categories', 'ambulance-assets',
   'blood-donations', 'community-donations', 'donation-item-types',
+  'documents',
 ];
 const readPermissions = (body) => (
   Array.isArray(body.permissions) ? JSON.stringify(body.permissions.filter((k) => MODULE_KEYS.includes(k))) : null
@@ -648,7 +651,7 @@ router.put('/inventory-items/:id', wrap(async (req, res) => {
       quantity = @quantity, min_quantity = @min_quantity, expiry_date = @expiry_date, source = @source,
       image_url = @image_url, notes = @notes, is_asset = @is_asset, location = @location,
       asset_condition = @asset_condition, serial_number = @serial_number, last_maintenance_date = @last_maintenance_date,
-      updated_at = SYSUTCDATETIME() WHERE id = @id`,
+      updated_at = datetime('now') WHERE id = @id`,
     { ...it, id });
   res.json({ ok: true });
 }));
@@ -675,7 +678,7 @@ router.post('/inventory-units', adminOnly, wrap(async (req, res) => {
     );
     res.status(201).json({ id: row.id });
   } catch (err) {
-    if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'هذه الوحدة موجودة مسبقاً' });
+    if (err.kind === 'unique_violation') return res.status(409).json({ error: 'هذه الوحدة موجودة مسبقاً' });
     throw err;
   }
 }));
@@ -713,7 +716,7 @@ router.post('/inventory-categories', adminOnly, wrap(async (req, res) => {
     );
     res.status(201).json({ id: row.id });
   } catch (err) {
-    if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'هذه الفئة موجودة مسبقاً' });
+    if (err.kind === 'unique_violation') return res.status(409).json({ error: 'هذه الفئة موجودة مسبقاً' });
     throw err;
   }
 }));
@@ -759,7 +762,7 @@ router.post('/inventory-usage', wrap(async (req, res) => {
   if (!rows.length) return res.status(404).json({ error: 'المادة غير موجودة' });
   if (rows[0].quantity < quantity) return res.status(400).json({ error: `الكمية المتوفرة ${rows[0].quantity} فقط` });
 
-  await query('UPDATE dbo.InventoryItems SET quantity = quantity - @q, updated_at = SYSUTCDATETIME() WHERE id = @id',
+  await query(`UPDATE dbo.InventoryItems SET quantity = quantity - @q, updated_at = datetime('now') WHERE id = @id`,
     { id: item_id, q: quantity });
   const [row] = await query(`
     INSERT INTO dbo.InventoryUsage (item_id, quantity, purpose, used_at, used_by)
@@ -858,7 +861,7 @@ router.post('/service-types', adminOnly, wrap(async (req, res) => {
     );
     res.status(201).json({ id: row.id });
   } catch (err) {
-    if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'هذه الخدمة موجودة مسبقاً' });
+    if (err.kind === 'unique_violation') return res.status(409).json({ error: 'هذه الخدمة موجودة مسبقاً' });
     throw err;
   }
 }));
@@ -881,7 +884,7 @@ router.delete('/service-types/:id', adminOnly, wrap(async (req, res) => {
     await query('DELETE FROM dbo.ServiceTypes WHERE id = @id', { id });
   } catch (err) {
     // FK violation: logs still reference this type - deactivate instead of deleting.
-    if (err.number === 547) return res.status(409).json({ error: 'لا يمكن حذف هذا النوع لوجود سجلات خدمات مرتبطة به. يمكنك إخفاؤه بدلاً من حذفه.' });
+    if (err.kind === 'fk_violation') return res.status(409).json({ error: 'لا يمكن حذف هذا النوع لوجود سجلات خدمات مرتبطة به. يمكنك إخفاؤه بدلاً من حذفه.' });
     throw err;
   }
   res.json({ ok: true });
@@ -931,7 +934,7 @@ router.get('/reports/services', adminOnly, wrap(async (req, res) => {
      FROM dbo.ServiceLogs l
      JOIN dbo.ServiceTypes st ON st.id = l.service_type_id
      LEFT JOIN dbo.TeamMembers tm ON tm.id = l.team_member_id
-     WHERE YEAR(l.service_date) = @year AND MONTH(l.service_date) = @month
+     WHERE CAST(strftime('%Y', l.service_date) AS INTEGER) = @year AND CAST(strftime('%m', l.service_date) AS INTEGER) = @month
      ORDER BY l.service_date`,
     { year, month }
   );
@@ -966,7 +969,7 @@ router.get('/reports/blood-donations', adminOnly, wrap(async (req, res) => {
   const donations = await query(
     `SELECT id, donor_name, donation_date, blood_type, hospital, recipient_name, notes
      FROM dbo.BloodDonations
-     WHERE YEAR(donation_date) = @year AND MONTH(donation_date) = @month
+     WHERE CAST(strftime('%Y', donation_date) AS INTEGER) = @year AND CAST(strftime('%m', donation_date) AS INTEGER) = @month
      ORDER BY donation_date`,
     { year, month }
   );
@@ -993,7 +996,7 @@ router.get('/reports/community-donations', adminOnly, wrap(async (req, res) => {
      FROM dbo.CommunityDonations d
      JOIN dbo.DonationItemTypes it ON it.id = d.item_type_id
      LEFT JOIN dbo.TeamMembers tm ON tm.id = d.team_member_id
-     WHERE YEAR(d.donation_date) = @year AND MONTH(d.donation_date) = @month
+     WHERE CAST(strftime('%Y', d.donation_date) AS INTEGER) = @year AND CAST(strftime('%m', d.donation_date) AS INTEGER) = @month
      ORDER BY d.donation_date`,
     { year, month }
   );
@@ -1015,7 +1018,7 @@ router.get('/reports/activities', adminOnly, wrap(async (req, res) => {
   const [row] = await query(
     `SELECT COUNT(*) AS total FROM dbo.Posts
      WHERE status = 'published' AND category = 'activity'
-       AND YEAR(event_date) = @year AND MONTH(event_date) = @month`,
+       AND CAST(strftime('%Y', event_date) AS INTEGER) = @year AND CAST(strftime('%m', event_date) AS INTEGER) = @month`,
     { year, month }
   );
   res.json({ year, month, total: row.total });
@@ -1038,7 +1041,7 @@ router.post('/ambulance-categories', adminOnly, wrap(async (req, res) => {
     );
     res.status(201).json({ id: row.id });
   } catch (err) {
-    if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'هذه الفئة موجودة مسبقاً' });
+    if (err.kind === 'unique_violation') return res.status(409).json({ error: 'هذه الفئة موجودة مسبقاً' });
     throw err;
   }
 }));
@@ -1152,7 +1155,7 @@ router.put('/ambulance-assets/:id', wrap(async (req, res) => {
     UPDATE dbo.AmbulanceAssets SET name = @name, manufacturer = @manufacturer, category = @category,
       quantity = @quantity, ambulance_number = @ambulance_number, asset_condition = @asset_condition,
       serial_number = @serial_number, last_maintenance_date = @last_maintenance_date, source = @source,
-      image_url = @image_url, notes = @notes, updated_at = SYSUTCDATETIME() WHERE id = @id`,
+      image_url = @image_url, notes = @notes, updated_at = datetime('now') WHERE id = @id`,
     { ...a, id });
   res.json({ ok: true });
 }));
@@ -1298,7 +1301,7 @@ router.post('/donation-item-types', adminOnly, wrap(async (req, res) => {
     );
     res.status(201).json({ id: row.id });
   } catch (err) {
-    if (err.number === 2627 || err.number === 2601) return res.status(409).json({ error: 'هذا الصنف موجود مسبقاً' });
+    if (err.kind === 'unique_violation') return res.status(409).json({ error: 'هذا الصنف موجود مسبقاً' });
     throw err;
   }
 }));
@@ -1320,7 +1323,7 @@ router.delete('/donation-item-types/:id', adminOnly, wrap(async (req, res) => {
   try {
     await query('DELETE FROM dbo.DonationItemTypes WHERE id = @id', { id });
   } catch (err) {
-    if (err.number === 547) return res.status(409).json({ error: 'لا يمكن حذف هذا الصنف لوجود تبرعات مرتبطة به. يمكنك إخفاؤه بدلاً من حذفه.' });
+    if (err.kind === 'fk_violation') return res.status(409).json({ error: 'لا يمكن حذف هذا الصنف لوجود تبرعات مرتبطة به. يمكنك إخفاؤه بدلاً من حذفه.' });
     throw err;
   }
   res.json({ ok: true });
@@ -1409,6 +1412,21 @@ router.delete('/community-donations/:id', adminOnly, wrap(async (req, res) => {
     }
   }
   res.json({ ok: true });
+}));
+
+// ---------- document templates ----------
+// Fills the association's own Word templates (server/templates/*.docx) and
+// streams back the same file with its blanks filled in — never a redrawn
+// lookalike. Nothing is persisted; each fill is generated on demand.
+router.get('/document-templates', wrap(async (req, res) => {
+  res.json(listTemplates());
+}));
+
+router.post('/document-templates/:id/fill', wrap(async (req, res) => {
+  const { buffer, filename } = renderDocx(req.params.id, req.body || {});
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+  res.send(buffer);
 }));
 
 module.exports = router;

@@ -1,67 +1,109 @@
-// Leaving DB_USER empty means "connect with my own Windows login" (e.g. to
-// LocalDB, or a local SQL Server instance with Windows auth). That needs the
-// native msnodesqlv8 driver instead of the pure-JS tedious driver that plain
-// `mssql` uses for SQL Server Authentication (DB_USER/DB_PASSWORD).
-const windowsAuth = !process.env.DB_USER;
-const sql = windowsAuth ? require('mssql/msnodesqlv8') : require('mssql');
+// SQLite via Node's built-in driver (no native build, no server process to
+// hang on - the whole reason this replaced SQL Server/LocalDB). The database
+// is a single file; see database/schema.sqlite.sql for its shape and
+// scripts/init-sqlite.js for how it's created and seeded.
+const path = require('path');
+const { DatabaseSync } = require('node:sqlite');
 
-// mssql's own Windows-auth connection string defaults to the legacy "SQL
-// Server Native Client 11.0" driver, which isn't installed on modern
-// machines. Build the ODBC connection string ourselves with a driver that
-// actually ships today.
-const ODBC_DRIVER = 'ODBC Driver 17 for SQL Server';
+const DB_PATH = process.env.DB_FILE
+  ? path.resolve(__dirname, '..', process.env.DB_FILE)
+  : path.join(__dirname, '..', 'data', 'risala.db');
 
-function buildConfig(database) {
-  const pool = { max: 10, min: 0, idleTimeoutMillis: 30000 };
-  if (windowsAuth) {
-    const server = process.env.DB_SERVER || 'localhost';
-    return {
-      connectionString: `Driver={${ODBC_DRIVER}};Server=${server};Database=${database};Trusted_Connection=Yes;`,
-      pool,
-    };
+let db = null;
+function getDb() {
+  if (!db) {
+    db = new DatabaseSync(DB_PATH);
+    db.exec('PRAGMA foreign_keys = ON');
   }
-  const instance = (process.env.DB_INSTANCE || '').trim();
-  const port = (process.env.DB_PORT || '').trim();
-  const cfg = {
-    server: process.env.DB_SERVER || 'localhost',
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database,
-    options: {
-      encrypt: String(process.env.DB_ENCRYPT).toLowerCase() === 'true',
-      trustServerCertificate: true,
-    },
-    pool,
-  };
-  if (instance) cfg.options.instanceName = instance;
-  else cfg.port = Number(port) || 1433;
-  return cfg;
+  return db;
 }
 
-let poolPromise = null;
-
-function getPool() {
-  if (!poolPromise) {
-    poolPromise = new sql.ConnectionPool(buildConfig(process.env.DB_NAME || 'RisalaSite'))
-      .connect()
-      .catch((err) => {
-        poolPromise = null; // allow a retry on the next request
-        throw err;
-      });
-  }
-  return poolPromise;
+// Kept so index.js's boot sequence ("Connected to..." log, the one-time
+// migrate()/export hooks) doesn't need to change shape - opening the file is
+// synchronous and effectively instant, so this just resolves immediately.
+async function getPool() {
+  getDb();
+  return db;
 }
 
-// query('SELECT ... WHERE id = @id', { id: 5 }) -> array of rows
+// query('SELECT ... WHERE id = @id', { id: 5 }) -> array of rows for a
+// SELECT; for an INSERT, [{ id: lastInsertRowid }] (replacing T-SQL's
+// `OUTPUT INSERTED.id`, stripped below); otherwise an empty array.
+// The route files were written for SQL Server, so this also strips the
+// `dbo.` schema prefix (SQLite has no schemas) and rewrites OFFSET/FETCH
+// paging to LIMIT/OFFSET - both pure, unambiguous text substitutions that
+// let the other ~130 query() call sites stay exactly as they were. The
+// handful of T-SQL-only constructs that aren't safe to blanket-rewrite this
+// way (TOP, YEAR()/MONTH()/DATEADD(), the Settings MERGE) were fixed at
+// their call sites instead.
 async function query(text, params = {}) {
-  const pool = await getPool();
-  const request = pool.request();
+  const conn = getDb();
+  let sqlText = text
+    .replace(/\bdbo\./g, '')
+    .replace(/OFFSET\s+(@\w+)\s+ROWS\s+FETCH\s+NEXT\s+(@\w+)\s+ROWS\s+ONLY/i, 'LIMIT $2 OFFSET $1')
+    .replace(/\s+OUTPUT\s+INSERTED\.id\b/i, '');
+
+  // node:sqlite throws "Unknown named parameter" if `params` has a key that
+  // isn't actually written as @key in the SQL text - unlike mssql, which
+  // silently ignored unused params. Several call sites build their WHERE
+  // clause conditionally (an optional filter's @placeholder only appears
+  // when the filter is active) while always passing the full params object,
+  // so only bind the names the query text actually references.
+  const used = new Set([...sqlText.matchAll(/@(\w+)/g)].map((m) => m[1]));
+  const bound = {};
   for (const [name, value] of Object.entries(params)) {
-    if (typeof value === 'string') request.input(name, sql.NVarChar(sql.MAX), value);
-    else request.input(name, value === undefined ? null : value);
+    if (!used.has(name)) continue;
+    if (value === undefined) bound[name] = null;
+    else if (typeof value === 'boolean') bound[name] = value ? 1 : 0;
+    else bound[name] = value;
   }
-  const result = await request.query(text);
-  return result.recordset || [];
+
+  let stmt;
+  try {
+    stmt = conn.prepare(sqlText);
+  } catch (err) {
+    throw classifyError(err);
+  }
+  const isSelect = /^\s*SELECT/i.test(sqlText);
+  try {
+    if (isSelect) return stmt.all(bound);
+
+    const info = stmt.run(bound);
+    if (/^\s*INSERT/i.test(sqlText)) return [{ id: Number(info.lastInsertRowid) }];
+    return [];
+  } catch (err) {
+    throw classifyError(err);
+  }
 }
 
-module.exports = { sql, query, getPool, buildConfig };
+// node:sqlite errors carry a numeric SQLite result code in err.errcode, not
+// mssql's err.number - route handlers that used to check err.number for a
+// duplicate-key (2627/2601) or FK-in-use (547) violation would otherwise
+// silently stop working. SQLite's extended result codes encode the primary
+// code in their low byte (e.g. 2067 = SQLITE_CONSTRAINT_UNIQUE = 19 | 8<<8),
+// so a single classification here covers every call site instead of each one
+// guessing at the driver's error shape. Errors are rethrown unchanged except
+// for this one added `.kind` field, so everything else about them (message,
+// stack, code) still works as before.
+const SQLITE_CONSTRAINT = 19;
+const SQLITE_CONSTRAINT_UNIQUE = 2067;
+const SQLITE_CONSTRAINT_FOREIGNKEY = 787;
+// Primary result codes for infrastructure-level failures (the database file
+// itself can't be read/written), as opposed to SQLITE_CONSTRAINT, which means
+// the connection is fine but this particular row was rejected.
+const SQLITE_UNAVAILABLE_CODES = new Set([5, 6, 8, 10, 11, 13, 14, 26]); // BUSY, LOCKED, READONLY, IOERR, CORRUPT, FULL, CANTOPEN, NOTADB
+
+function classifyError(err) {
+  if (typeof err.errcode !== 'number') return err;
+  const primary = err.errcode & 0xff;
+  if (primary === SQLITE_CONSTRAINT) {
+    if (err.errcode === SQLITE_CONSTRAINT_UNIQUE) err.kind = 'unique_violation';
+    else if (err.errcode === SQLITE_CONSTRAINT_FOREIGNKEY) err.kind = 'fk_violation';
+    else err.kind = 'constraint_violation';
+  } else if (SQLITE_UNAVAILABLE_CODES.has(primary)) {
+    err.kind = 'unavailable';
+  }
+  return err;
+}
+
+module.exports = { query, getPool, getDb, DB_PATH };

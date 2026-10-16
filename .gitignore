@@ -3,3 +3,5 @@ dist/
 .env
 server/uploads/*
 !server/uploads/.gitkeep
+server/data/
+server/data-export.json

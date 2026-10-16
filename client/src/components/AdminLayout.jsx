@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange, FileSignature } from 'lucide-react';
 import { api, logout } from '../lib/api.js';
 import { useSettings } from '../App.jsx';
 import { LOGO } from '../lib/brand.js';
@@ -31,6 +31,9 @@ const GROUPS = [
     ['/admin/service-types', 'أنواع الخدمات', Stethoscope, false, 'service-types'],
     ['/admin/service-logs', 'سجلّ الخدمات', Activity, false, 'service-logs'],
     ['/admin/schedule', 'جدول المناوبات', Clock, false, 'schedule'],
+  ] },
+  { title: 'النماذج والمحاضر', items: [
+    ['/admin/documents', 'المحاضر والنماذج', FileSignature, false, 'documents'],
   ] },
   { title: 'المخزون', items: [
     ['/admin/inventory', 'المخزون الطبي', Package, false, 'inventory'],
@@ -82,7 +85,10 @@ export default function AdminLayout() {
   const isAdmin = user.role === 'admin';
   const permissions = Array.isArray(user.permissions) ? user.permissions : [];
   const canSee = ([, , , adminOnly, pageKey]) => isAdmin || (!adminOnly && (!pageKey || permissions.includes(pageKey)));
-  const title = TITLES[location.pathname] || (location.pathname.startsWith('/admin/posts/') ? 'تحرير منشور' : 'مركز الإدارة');
+  const title = TITLES[location.pathname]
+    || (location.pathname.startsWith('/admin/posts/') ? 'تحرير منشور'
+      : location.pathname.startsWith('/admin/documents/') ? 'تعبئة نموذج'
+        : 'مركز الإدارة');
 
   return (
     <div className="admin">

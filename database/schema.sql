@@ -471,8 +471,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Commun
 ALTER TABLE dbo.CommunityDonations ADD quantity INT NOT NULL CONSTRAINT DF_ComDon_qty DEFAULT 1;
 GO
 
--- Which modules an editor can reach (JSON array of module keys, e.g.
--- '["content","field"]'). NULL/empty means none yet. Ignored for admins,
+-- Which admin pages an editor can reach (JSON array of page keys, e.g.
+-- '["posts","reports"]'). NULL/empty means none yet. Ignored for admins,
 -- who always have full access - see requireModule in server/src/auth.js.
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Users') AND name = 'permissions')
 ALTER TABLE dbo.Users ADD permissions NVARCHAR(MAX) NULL;

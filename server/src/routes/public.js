@@ -28,14 +28,15 @@ router.get('/posts', wrap(async (req, res) => {
   // page can render a page count without a second round trip.
   if (!page) {
     const rows = await query(
-      `SELECT TOP (@limit) p.id, p.title, p.category, p.summary, p.cover_url, p.event_date, p.published_at, p.pinned,
+      `SELECT p.id, p.title, p.category, p.summary, p.cover_url, p.event_date, p.published_at, p.pinned,
               mt.id AS mission_type_id, mt.name AS mission_type_name, mt.color AS mission_type_color,
               (SELECT COUNT(*) FROM dbo.PostParamedics pp WHERE pp.post_id = p.id) AS paramedic_count
        FROM dbo.Posts p
        LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id
        WHERE p.status = 'published' AND (@category IS NULL OR p.category = @category)
          AND (@typeId IS NULL OR p.mission_type_id = @typeId)
-       ORDER BY p.pinned DESC, COALESCE(p.event_date, CAST(p.published_at AS DATE)) DESC, p.id DESC`,
+       ORDER BY p.pinned DESC, COALESCE(p.event_date, date(p.published_at)) DESC, p.id DESC
+       LIMIT @limit`,
       { limit, category, typeId }
     );
     return res.json(rows);
@@ -51,7 +52,7 @@ router.get('/posts', wrap(async (req, res) => {
        LEFT JOIN dbo.MissionTypes mt ON mt.id = p.mission_type_id
        WHERE p.status = 'published' AND (@category IS NULL OR p.category = @category)
          AND (@typeId IS NULL OR p.mission_type_id = @typeId)
-       ORDER BY p.pinned DESC, COALESCE(p.event_date, CAST(p.published_at AS DATE)) DESC, p.id DESC
+       ORDER BY p.pinned DESC, COALESCE(p.event_date, date(p.published_at)) DESC, p.id DESC
        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
       { limit, offset, category, typeId }
     ),
@@ -99,8 +100,8 @@ router.get('/team', wrap(async (req, res) => {
 
 router.get('/gallery', wrap(async (req, res) => {
   res.json(await query(
-    `SELECT TOP (300) id, url, caption, album
-     FROM dbo.GalleryImages WHERE visible = 1 ORDER BY created_at DESC, id DESC`
+    `SELECT id, url, caption, album
+     FROM dbo.GalleryImages WHERE visible = 1 ORDER BY created_at DESC, id DESC LIMIT 300`
   ));
 }));
 

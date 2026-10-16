@@ -99,11 +99,11 @@ router.get('/team', wrap(async (req, res) => {
 }));
 
 router.get('/shifts', wrap(async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  // The whole current week, not just what's left of it - a weekday visitor
+  // should still see Monday's coverage on a Friday, not just Fri-Sun.
   const shifts = await query(
     `SELECT id, shift_date, start_time, end_time FROM dbo.Shifts
-     WHERE shift_date >= @today ORDER BY shift_date, start_time LIMIT 14`,
-    { today }
+     WHERE shift_date >= date('now', '-6 days') ORDER BY shift_date, start_time LIMIT 14`
   );
   const members = shifts.length
     ? await query(`

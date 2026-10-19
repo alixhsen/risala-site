@@ -99,11 +99,15 @@ router.get('/team', wrap(async (req, res) => {
 }));
 
 router.get('/shifts', wrap(async (req, res) => {
-  // The whole current week, not just what's left of it - a weekday visitor
-  // should still see Monday's coverage on a Friday, not just Fri-Sun.
+  // Only the Mon-Sun week containing today - not just "today onward" (which
+  // dropped earlier days of this week) and not an unbounded "-6 days" (which
+  // also pulled in any future weeks already scheduled). 'weekday 0' finds
+  // the next Sunday (today itself if today is Sunday); -6 days from that is
+  // this week's Monday.
   const shifts = await query(
     `SELECT id, shift_date, start_time, end_time FROM dbo.Shifts
-     WHERE shift_date >= date('now', '-6 days') ORDER BY shift_date, start_time LIMIT 14`
+     WHERE shift_date >= date('now', 'weekday 0', '-6 days') AND shift_date <= date('now', 'weekday 0')
+     ORDER BY shift_date, start_time`
   );
   const members = shifts.length
     ? await query(`

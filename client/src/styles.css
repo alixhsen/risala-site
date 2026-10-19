@@ -659,55 +659,37 @@ main { min-height: 60vh; }
 .mission-all:hover { background: var(--brand-tint); border-color: var(--brand-strong); }
 @media (max-width: 639px) { .mission-row { grid-template-columns: auto 80px minmax(0, 1fr) auto; gap: 12px; } .mission-row-thumb { width: 80px; height: 60px; } }
 
-/* ---------- 9b2. Home: shift schedule ---------- */
-/* Phone/tablet: a horizontal swipeable strip (same pattern as the team
-   roster below it) so every card keeps a consistent, readable size instead
-   of wrapping into an uneven grid. Desktop: all 7 days fit one row, so it
-   becomes a plain grid and the scroll affordances turn off. */
-.shift-strip {
-  display: flex; flex-wrap: nowrap; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none; margin-inline: -4px; padding: 4px 4px 6px;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
-}
-.shift-strip::-webkit-scrollbar { display: none; }
+/* ---------- 9b2. Home: today's shift ---------- */
+/* Just one card - who's on duty today - so it's centred and roomy rather
+   than the horizontal-scroll strip a multi-day list would need. */
+.shift-strip-single { display: flex; justify-content: center; }
 .shift-card {
-  position: relative; flex: none; width: clamp(122px, 30vw, 155px);
-  display: grid; justify-items: center; gap: 8px; text-align: center;
-  padding: 20px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card);
-  box-shadow: var(--shadow-card); transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), border-color 0.25s;
+  position: relative; width: 100%; max-width: 440px;
+  display: grid; justify-items: center; gap: 10px; text-align: center;
+  padding: 36px 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
 }
-.shift-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
 .shift-card.is-today { border-color: var(--gold); background: var(--brand-tint); }
 .shift-today-badge {
-  position: absolute; top: -11px; background: var(--gold); color: #fff; font-size: 11px; font-weight: 900;
-  padding: 3px 12px; border-radius: 999px; box-shadow: 0 6px 14px -6px rgba(197, 160, 89, 0.6); white-space: nowrap;
+  position: absolute; top: -13px; background: var(--gold); color: #fff; font-size: 12.5px; font-weight: 900;
+  padding: 4px 16px; border-radius: 999px; box-shadow: 0 6px 14px -6px rgba(197, 160, 89, 0.6); white-space: nowrap;
 }
-.shift-weekday { font-size: 15px; font-weight: 900; color: var(--ink); }
-.shift-date { font-size: 12px; font-weight: 700; color: var(--ink-3); }
-.shift-time { display: flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 800; color: var(--brand-link); white-space: nowrap; }
-.shift-avatars { display: flex; justify-content: center; margin-top: 4px; }
+.shift-weekday { font-size: 19px; font-weight: 900; color: var(--ink); }
+.shift-date { font-size: 13.5px; font-weight: 700; color: var(--ink-3); }
+.shift-time { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: var(--brand-link); white-space: nowrap; margin-top: 2px; }
+.shift-avatars { display: flex; justify-content: center; margin-top: 6px; }
+.shift-avatars-lg { flex-wrap: wrap; gap: 14px 18px; margin-top: 14px; }
 .shift-avatar {
   width: 32px; height: 32px; border-radius: 999px; overflow: hidden; border: 2px solid var(--surface);
   margin-inline-start: -10px; box-shadow: 0 0 0 1px var(--line); background: var(--brand-tint);
   display: grid; place-items: center; flex: none;
 }
+.shift-avatars-lg .shift-avatar { width: 56px; height: 56px; margin-inline-start: 0; box-shadow: 0 0 0 1px var(--line), var(--shadow-card); }
 .shift-avatar:first-child { margin-inline-start: 0; }
 .shift-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .shift-avatar-init { font-size: 12px; font-weight: 900; color: var(--brand-link); }
-.shift-avatar-more {
-  width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; margin-inline-start: -10px;
-  background: var(--green-900); color: #fff; font-size: 10.5px; font-weight: 900; border: 2px solid var(--surface); flex: none;
-}
-.shift-empty { font-size: 12px; color: var(--ink-3); font-weight: 700; margin-top: 4px; }
-@media (min-width: 640px) { .shift-card { padding: 22px 14px; } .shift-weekday { font-size: 16px; } .shift-time { font-size: 13px; } }
-@media (min-width: 1024px) {
-  .shift-strip {
-    overflow-x: visible; -webkit-mask-image: none; mask-image: none; margin-inline: 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  }
-  .shift-card { width: auto; }
-}
+.shift-avatars-lg .shift-avatar-init { font-size: 20px; }
+.shift-empty { font-size: 13px; color: var(--ink-3); font-weight: 700; margin-top: 6px; }
 
 /* ---------- 9c. Team: roster cards ---------- */
 /* A single, roomy column on phones - a two-up grid left three-word Arabic

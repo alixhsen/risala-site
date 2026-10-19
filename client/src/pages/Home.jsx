@@ -59,28 +59,23 @@ function ServiceCard({ icon: Icon, title, text, i }) {
   );
 }
 
-const MAX_SHIFT_AVATARS = 5;
-
-function ShiftDay({ shift, isToday }) {
+function CurrentShift({ shift }) {
   const ref = useReveal();
-  const shown = shift.members.slice(0, MAX_SHIFT_AVATARS);
-  const extra = shift.members.length - shown.length;
   return (
-    <article ref={ref} className={`shift-card reveal${isToday ? ' is-today' : ''}`}>
-      {isToday && <span className="shift-today-badge">اليوم</span>}
+    <article ref={ref} className="shift-card is-today reveal">
+      <span className="shift-today-badge">مناوبة اليوم</span>
       <span className="shift-weekday">{formatWeekday(shift.shift_date)}</span>
       <span className="shift-date">{formatDayMonth(shift.shift_date)}</span>
-      <span className="shift-time"><Clock size={13} aria-hidden="true" /> {formatTime(shift.start_time)} – {formatTime(shift.end_time)}</span>
+      <span className="shift-time"><Clock size={14} aria-hidden="true" /> {formatTime(shift.start_time)} – {formatTime(shift.end_time)}</span>
       {shift.members.length > 0 ? (
-        <div className="shift-avatars">
-          {shown.map((m) => (
+        <div className="shift-avatars shift-avatars-lg">
+          {shift.members.map((m) => (
             <span key={m.id} className="shift-avatar" title={m.name}>
               {m.photo_url
                 ? <img src={m.photo_url} alt={m.name} loading="lazy" />
                 : <span className="shift-avatar-init" aria-hidden="true">{m.name.trim().charAt(0)}</span>}
             </span>
           ))}
-          {extra > 0 && <span className="shift-avatar-more">+{extra}</span>}
         </div>
       ) : (
         <span className="shift-empty">لم يُحدَّد الفريق بعد</span>
@@ -108,7 +103,6 @@ export default function Home() {
   const gallery = useLoad('/public/gallery', []);
   const team = useLoad('/public/team', []);
   const shifts = useLoad('/public/shifts', []);
-  const todayIso = new Date().toISOString().slice(0, 10);
   const [featured, ...moreMissions] = missions.data;
   const featuredRef = useReveal();
   const quoteRef = useReveal();
@@ -142,11 +136,9 @@ export default function Home() {
       {shifts.data.length > 0 && (
         <section className="section soft" id="schedule">
           <div className="wrap">
-            <SecHead icon={Clock} kicker="التغطية الميدانية" title="جدول المناوبات" lead="فريق جاهز على مدار الأسبوع للاستجابة الفورية عند الحاجة." />
-            <div className="shift-strip">
-              {shifts.data.map((s) => (
-                <ShiftDay key={s.id} shift={s} isToday={s.shift_date.slice(0, 10) === todayIso} />
-              ))}
+            <SecHead icon={Clock} kicker="التغطية الميدانية" title="جدول المناوبات" lead="الفريق الجاهز للاستجابة الفورية اليوم." />
+            <div className="shift-strip shift-strip-single">
+              <CurrentShift shift={shifts.data[0]} />
             </div>
           </div>
         </section>

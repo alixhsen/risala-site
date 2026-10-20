@@ -184,6 +184,24 @@ function ensureAdminAccount(db) {
   console.log(generated ? `  password: ${password}   (shown once - save it now)` : '  password: the ADMIN_PASSWORD you set');
 }
 
+// CREATE TABLE IF NOT EXISTS (above) only helps a table that doesn't exist
+// yet - a column added to an existing table's definition in schema.sqlite.sql
+// needs its own ALTER TABLE here, or every database created before that
+// change keeps missing it forever. Checked against PRAGMA table_info first
+// so running this again (or against a fresh database that already has the
+// column via CREATE TABLE) is a no-op instead of an error.
+function addColumnIfMissing(db, table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (cols.includes(column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  console.log(`${table}: added column "${column}".`);
+}
+
+function migrateColumns(db) {
+  addColumnIfMissing(db, 'BloodDonors', 'birth_date', 'birth_date TEXT');
+  addColumnIfMissing(db, 'BloodDonors', 'discarded', 'discarded INTEGER NOT NULL DEFAULT 0');
+}
+
 function main() {
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   const db = new DatabaseSync(DB_PATH);
@@ -191,6 +209,7 @@ function main() {
 
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
   db.exec(schema);
+  migrateColumns(db);
   console.log(`Schema ready at ${DB_PATH}`);
 
   if (!fs.existsSync(EXPORT_PATH)) {

@@ -8,7 +8,8 @@ import { api, formatDate } from '../../lib/api.js';
 import { toCsv, downloadCsv } from '../../lib/csv.js';
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-const EMPTY = { name: '', phone: '', blood_type: '', area: '', notes: '' };
+const EMPTY = { name: '', phone: '', blood_type: '', birth_date: '', area: '', notes: '' };
+const TODAY = new Date().toISOString().slice(0, 10);
 
 // Public self-registered blood donors. Staff search this list by blood type
 // when a need comes in, then mark whoever actually gave blood so they drop
@@ -25,6 +26,7 @@ export default function BloodDonorsAdmin() {
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
   const available = useMemo(() => data.filter((d) => d.available), [data]);
+  const discarded = useMemo(() => data.filter((d) => d.discarded), [data]);
   const topType = useMemo(() => {
     const counts = new Map();
     for (const d of available) counts.set(d.blood_type, (counts.get(d.blood_type) || 0) + 1);
@@ -36,7 +38,8 @@ export default function BloodDonorsAdmin() {
     return data.filter((d) => {
       if (typeFilter && d.blood_type !== typeFilter) return false;
       if (availFilter === 'available' && !d.available) return false;
-      if (availFilter === 'cooldown' && d.available) return false;
+      if (availFilter === 'cooldown' && (d.available || d.discarded)) return false;
+      if (availFilter === 'discarded' && !d.discarded) return false;
       if (!q) return true;
       return [d.name, d.phone, d.area, d.blood_type, d.notes].some((v) => String(v || '').toLowerCase().includes(q));
     });
@@ -48,8 +51,9 @@ export default function BloodDonorsAdmin() {
       { label: 'الهاتف', value: 'phone' },
       { label: 'فصيلة الدم', value: 'blood_type' },
       { label: 'المنطقة', value: 'area' },
+      { label: 'تاريخ الميلاد', value: (d) => d.birth_date ? String(d.birth_date).slice(0, 10) : '' },
       { label: 'آخر تبرّع', value: (d) => d.last_donation_date ? String(d.last_donation_date).slice(0, 10) : '' },
-      { label: 'الحالة', value: (d) => (d.active ? (d.available ? 'متاح' : 'ضمن فترة الانتظار') : 'معطّل') },
+      { label: 'الحالة', value: (d) => (d.discarded ? 'دون السن القانونية' : d.active ? (d.available ? 'متاح' : 'ضمن فترة الانتظار') : 'معطّل') },
       { label: 'ملاحظات', value: 'notes' },
     ];
     const stamp = new Date().toISOString().slice(0, 10);
@@ -109,6 +113,7 @@ export default function BloodDonorsAdmin() {
         { label: 'إجمالي المسجّلين', value: data.length, tone: 'brand' },
         { label: 'متاحون الآن', value: available.length, tone: 'gold' },
         { label: 'الأكثر توفّراً', value: topType?.[0] || '—', sub: topType ? `${topType[1]} متبرّع` : 'لا بيانات بعد', tone: 'warn' },
+        { label: 'دون السن القانونية', value: discarded.length, sub: 'تلقائياً عند التسجيل', tone: 'danger' },
       ]} />
 
       {error && <p className="error">{error}</p>}
@@ -131,6 +136,11 @@ export default function BloodDonorsAdmin() {
                   {BLOOD_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </label>
+              <label className="field"><span>تاريخ الميلاد</span>
+                <input type="date" max={TODAY} value={form.birth_date || ''} onChange={(e) => set({ birth_date: e.target.value })} />
+              </label>
+            </div>
+            <div className="field-row">
               <label className="field"><span>المنطقة</span>
                 <input maxLength={100} value={form.area || ''} onChange={(e) => set({ area: e.target.value })} />
               </label>
@@ -149,7 +159,7 @@ export default function BloodDonorsAdmin() {
 
       <FilterBar search={search} onSearch={setSearch} placeholder="ابحث بالاسم أو الهاتف أو المنطقة">
         <ChipFilter label="فصيلة الدم" value={typeFilter} onChange={setTypeFilter} options={[['', 'كل الفصائل'], ...BLOOD_TYPES.map((t) => [t, t])]} />
-        <ChipFilter label="الحالة" value={availFilter} onChange={setAvailFilter} options={[['', 'الكل'], ['available', 'متاح'], ['cooldown', 'ضمن الانتظار']]} />
+        <ChipFilter label="الحالة" value={availFilter} onChange={setAvailFilter} options={[['', 'الكل'], ['available', 'متاح'], ['cooldown', 'ضمن الانتظار'], ['discarded', 'دون السن القانونية']]} />
       </FilterBar>
 
       {data.length === 0 && <EmptyPanel icon={Droplet} title="لا متبرعون مسجّلون بعد" text="ينضم المتبرعون تلقائياً عبر صفحة التبرع بالدم في الموقع، أو أضف واحداً يدوياً." />}
@@ -158,22 +168,25 @@ export default function BloodDonorsAdmin() {
       {rows.length > 0 && (
         <div className="table-wrap admin-table">
           <table>
-            <thead><tr><th>الاسم</th><th>الهاتف</th><th>الفصيلة</th><th>المنطقة</th><th>آخر تبرّع</th><th>الحالة</th><th aria-label="إجراءات"></th></tr></thead>
+            <thead><tr><th>الاسم</th><th>الهاتف</th><th>الفصيلة</th><th>المنطقة</th><th>تاريخ الميلاد</th><th>آخر تبرّع</th><th>الحالة</th><th aria-label="إجراءات"></th></tr></thead>
             <tbody>
               {rows.map((d) => (
-                <tr key={d.id} className={!d.active ? 'row-muted' : ''}>
+                <tr key={d.id} className={!d.active || d.discarded ? 'row-muted' : ''}>
                   <td><strong>{d.name}</strong></td>
                   <td dir="ltr">{d.phone}</td>
                   <td><span className="qty-chip">{d.blood_type}</span></td>
                   <td>{d.area || '—'}</td>
+                  <td>{d.birth_date ? formatDate(d.birth_date) : '—'}</td>
                   <td>{d.last_donation_date ? formatDate(d.last_donation_date) : '—'}</td>
                   <td>
-                    {!d.active
-                      ? <span className="muted-cell">معطّل</span>
-                      : d.available ? <span className="status-btn ok">متاح</span> : <span className="status-btn warn">ضمن الانتظار</span>}
+                    {d.discarded
+                      ? <span className="status-btn danger">دون السن القانونية</span>
+                      : !d.active
+                        ? <span className="muted-cell">معطّل</span>
+                        : d.available ? <span className="status-btn ok">متاح</span> : <span className="status-btn warn">ضمن الانتظار</span>}
                   </td>
                   <td className="row-actions-icons">
-                    <IconButton icon={HeartHandshake} label="تسجيل تبرّع اليوم" onClick={() => markDonated(d)} disabled={!d.active} />
+                    <IconButton icon={HeartHandshake} label="تسجيل تبرّع اليوم" onClick={() => markDonated(d)} disabled={!d.active || d.discarded} />
                     <IconButton icon={Power} label={d.active ? 'تعطيل' : 'تفعيل'} onClick={() => toggleActive(d)} />
                     <IconButton icon={Pencil} label="تعديل" onClick={() => { setFormError(''); setForm(d); }} />
                     <IconButton icon={Trash2} label="حذف" tone="danger" onClick={() => remove(d)} />

@@ -432,6 +432,8 @@ CREATE TABLE dbo.BloodDonors (
   blood_type         NVARCHAR(5) NOT NULL CONSTRAINT CK_BloodDonors_type CHECK (blood_type IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
   area               NVARCHAR(100) NULL,
   notes              NVARCHAR(500) NULL,
+  birth_date         DATE NULL,
+  discarded          BIT NOT NULL CONSTRAINT DF_BloodDonors_discarded DEFAULT 0,
   last_donation_date DATE NULL,
   active             BIT NOT NULL CONSTRAINT DF_BloodDonors_active DEFAULT 1,
   created_at         DATETIME2 NOT NULL CONSTRAINT DF_BloodDonors_created DEFAULT SYSUTCDATETIME()

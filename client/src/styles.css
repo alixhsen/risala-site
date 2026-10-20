@@ -1443,6 +1443,7 @@ main { min-height: 60vh; }
 .status-btn:hover { filter: brightness(0.96); transform: translateY(-1px); }
 .status-btn.warn { background: var(--warn-tint); color: var(--warn); }
 .status-btn.ok { background: var(--ok-tint); color: var(--ok); }
+.status-btn.danger { background: var(--urgent-tint); color: var(--urgent); }
 
 .row-actions-icons { white-space: nowrap; text-align: end; }
 .row-actions-icons > * + * { margin-inline-start: 6px; }

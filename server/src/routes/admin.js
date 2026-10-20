@@ -9,7 +9,7 @@ const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const { query } = require('../db');
 const { adminOnly, requireModule } = require('../auth');
-const { wrap, str, uploadUrl, httpUrl, dateOnly, timeOnly, idParam, intList } = require('../util');
+const { wrap, str, uploadUrl, httpUrl, dateOnly, timeOnly, isAdult, idParam, intList } = require('../util');
 const { listTemplates } = require('../documentTemplates');
 const { renderDocx } = require('../docTemplates');
 
@@ -1287,7 +1287,13 @@ const readBloodDonor = (b) => ({
   blood_type: BLOOD_TYPES.includes(b.blood_type) ? b.blood_type : null,
   area: str(b.area, 100),
   notes: str(b.notes, 500),
+  birth_date: dateOnly(b.birth_date),
 });
+
+// Under 18 on the birth date given: keep the row, but never let it count as
+// available - a missing birth date (older rows, imported data) is left as-is
+// instead of being discarded for a fact we simply don't have.
+const discardedFor = (birth_date) => (birth_date && !isAdult(birth_date) ? 1 : 0);
 
 router.get('/blood-donors', wrap(async (req, res) => {
   const type = BLOOD_TYPES.includes(req.query.type) ? req.query.type : null;
@@ -1295,10 +1301,10 @@ router.get('/blood-donors', wrap(async (req, res) => {
   const where = ['1=1'];
   const params = { type };
   if (type) where.push('blood_type = @type');
-  if (onlyAvailable) where.push("active = 1 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months'))");
+  if (onlyAvailable) where.push("active = 1 AND discarded = 0 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months'))");
   res.json(await query(`
     SELECT *,
-      CASE WHEN active = 1 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months'))
+      CASE WHEN active = 1 AND discarded = 0 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months'))
         THEN 1 ELSE 0 END AS available
     FROM dbo.BloodDonors
     WHERE ${where.join(' AND ')}
@@ -1309,8 +1315,9 @@ router.post('/blood-donors', wrap(async (req, res) => {
   const d = readBloodDonor(req.body);
   if (!d.name || !d.phone || !d.blood_type) return res.status(400).json({ error: 'الاسم والهاتف وفئة الدم مطلوبة' });
   const [row] = await query(`
-    INSERT INTO dbo.BloodDonors (name, phone, blood_type, area, notes)
-    OUTPUT INSERTED.id VALUES (@name, @phone, @blood_type, @area, @notes)`, d);
+    INSERT INTO dbo.BloodDonors (name, phone, blood_type, area, notes, birth_date, discarded)
+    OUTPUT INSERTED.id VALUES (@name, @phone, @blood_type, @area, @notes, @birth_date, @discarded)`,
+    { ...d, discarded: discardedFor(d.birth_date) });
   res.status(201).json({ id: row.id });
 }));
 
@@ -1319,8 +1326,9 @@ router.put('/blood-donors/:id', wrap(async (req, res) => {
   const d = readBloodDonor(req.body);
   if (!id || !d.name || !d.phone || !d.blood_type) return res.status(400).json({ error: 'الاسم والهاتف وفئة الدم مطلوبة' });
   await query(`
-    UPDATE dbo.BloodDonors SET name = @name, phone = @phone, blood_type = @blood_type, area = @area, notes = @notes
-    WHERE id = @id`, { ...d, id });
+    UPDATE dbo.BloodDonors SET name = @name, phone = @phone, blood_type = @blood_type, area = @area, notes = @notes,
+      birth_date = @birth_date, discarded = @discarded
+    WHERE id = @id`, { ...d, id, discarded: discardedFor(d.birth_date) });
   res.json({ ok: true });
 }));
 

@@ -271,6 +271,8 @@ CREATE TABLE IF NOT EXISTS BloodDonors (
   blood_type         TEXT NOT NULL CHECK (blood_type IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
   area               TEXT,
   notes              TEXT,
+  birth_date         TEXT,
+  discarded          INTEGER NOT NULL DEFAULT 0,
   last_donation_date TEXT,
   active             INTEGER NOT NULL DEFAULT 1,
   created_at         TEXT NOT NULL DEFAULT (datetime('now'))

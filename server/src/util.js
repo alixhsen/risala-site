@@ -28,6 +28,19 @@ const timeOnly = (v) => {
   return s && /^\d{2}:\d{2}$/.test(s) ? s : null;
 };
 
+// Whole-years-old as of today, computed in UTC so the server's local
+// timezone can't shift someone across their birthday by a day.
+const isAdult = (birthDate) => {
+  if (!dateOnly(birthDate)) return true; // unknown birth date: don't discard
+  const dob = new Date(`${birthDate}T00:00:00Z`);
+  const now = new Date();
+  let age = now.getUTCFullYear() - dob.getUTCFullYear();
+  const beforeBirthdayThisYear = now.getUTCMonth() < dob.getUTCMonth()
+    || (now.getUTCMonth() === dob.getUTCMonth() && now.getUTCDate() < dob.getUTCDate());
+  if (beforeBirthdayThisYear) age--;
+  return age >= 18;
+};
+
 const idParam = (req) => {
   const id = Number(req.params.id);
   return Number.isInteger(id) && id > 0 ? id : null;
@@ -41,4 +54,4 @@ const intList = (v) => {
   return [...new Set(ids)];
 };
 
-module.exports = { wrap, str, uploadUrl, httpUrl, dateOnly, timeOnly, idParam, intList };
+module.exports = { wrap, str, uploadUrl, httpUrl, dateOnly, timeOnly, isAdult, idParam, intList };

@@ -7,7 +7,8 @@ import PageHeader from '../components/PageHeader.jsx';
 import useReveal from '../hooks/useReveal.js';
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-const EMPTY = { name: '', phone: '', blood_type: '', area: '' };
+const EMPTY = { name: '', phone: '', blood_type: '', birth_date: '', area: '' };
+const TODAY = new Date().toISOString().slice(0, 10);
 
 export default function BloodDonation() {
   const { settings } = useSettings();
@@ -121,6 +122,11 @@ export default function BloodDonation() {
                   {BLOOD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
+              <label className="field"><span>تاريخ الميلاد</span>
+                <input required type="date" max={TODAY} value={form.birth_date} onChange={(e) => set({ birth_date: e.target.value })} />
+              </label>
+            </div>
+            <div className="contact-grid">
               <label className="field"><span>المنطقة (اختياري)</span>
                 <input maxLength={100} value={form.area} onChange={(e) => set({ area: e.target.value })} />
               </label>

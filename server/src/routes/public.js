@@ -2,7 +2,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { query } = require('../db');
-const { wrap, str, idParam } = require('../util');
+const { wrap, str, dateOnly, isAdult, idParam } = require('../util');
 
 const router = express.Router();
 
@@ -161,7 +161,7 @@ const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 router.get('/blood-stats', wrap(async (req, res) => {
   const byType = await query(`
     SELECT blood_type,
-      SUM(CASE WHEN active = 1 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months')) THEN 1 ELSE 0 END) AS available,
+      SUM(CASE WHEN active = 1 AND discarded = 0 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months')) THEN 1 ELSE 0 END) AS available,
       COUNT(*) AS total
     FROM dbo.BloodDonors GROUP BY blood_type`);
   const [{ total_donations }] = await query('SELECT COUNT(*) AS total_donations FROM dbo.BloodDonations');
@@ -183,10 +183,14 @@ router.post('/blood-donors', donorLimiter, wrap(async (req, res) => {
   const phone = str(req.body.phone, 40);
   const blood_type = BLOOD_TYPES.includes(req.body.blood_type) ? req.body.blood_type : null;
   const area = str(req.body.area, 100);
-  if (!name || !phone || !blood_type) return res.status(400).json({ error: 'الاسم ورقم الهاتف وفئة الدم مطلوبة' });
+  const birth_date = dateOnly(req.body.birth_date);
+  if (!name || !phone || !blood_type || !birth_date) return res.status(400).json({ error: 'الاسم ورقم الهاتف وفئة الدم وتاريخ الميلاد مطلوبة' });
+  // Under 18: keep the submission on record, but never surface it to staff
+  // as someone they can call - discarded = 0 is required for "available".
+  const discarded = isAdult(birth_date) ? 0 : 1;
   await query(
-    'INSERT INTO dbo.BloodDonors (name, phone, blood_type, area) VALUES (@name, @phone, @blood_type, @area)',
-    { name, phone, blood_type, area }
+    'INSERT INTO dbo.BloodDonors (name, phone, blood_type, area, birth_date, discarded) VALUES (@name, @phone, @blood_type, @area, @birth_date, @discarded)',
+    { name, phone, blood_type, area, birth_date, discarded }
   );
   res.status(201).json({ ok: true });
 }));

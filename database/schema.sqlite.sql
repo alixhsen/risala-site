@@ -260,6 +260,22 @@ CREATE TABLE IF NOT EXISTS BloodDonations (
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Public blood-donor registry: anyone can submit their own info from the
+-- public site. Staff search this list by blood type when a need comes in,
+-- then mark whoever actually gave blood - last_donation_date drives the
+-- six-month cooldown so the same donor isn't called again too soon.
+CREATE TABLE IF NOT EXISTS BloodDonors (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  name               TEXT NOT NULL,
+  phone              TEXT NOT NULL,
+  blood_type         TEXT NOT NULL CHECK (blood_type IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
+  area               TEXT,
+  notes              TEXT,
+  last_donation_date TEXT,
+  active             INTEGER NOT NULL DEFAULT 1,
+  created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS DonationItemTypes (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT NOT NULL UNIQUE,

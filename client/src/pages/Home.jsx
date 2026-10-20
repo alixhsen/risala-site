@@ -311,25 +311,24 @@ export default function Home() {
       )}
 
       {/* ================= DONATE ================= */}
-      {settings.donate_url && (
-        <section className="section">
-          <div className="wrap">
-            <div ref={donateRef} className="donate reveal">
-              <span className="donate-icon"><Droplet size={36} aria-hidden="true" /></span>
-              <div>
-                <Kicker icon={HeartPulse}>تبرّع بالدم</Kicker>
-                <h2>ساهم، تبرّع، أنقذ حياة</h2>
-                <p>منصّة Risala Donate التابعة لفرقتنا تتيح لك البحث عن متبرعين متوافقين أو التسجيل كمتبرع بسهولة.</p>
-              </div>
-              <div className="actions">
-                <a className="btn primary" href={settings.donate_url} target="_blank" rel="noreferrer">
-                  الدخول إلى منصة التبرع <ArrowLeft size={16} aria-hidden="true" />
-                </a>
-              </div>
+      <section className="section">
+        <div className="wrap">
+          <div ref={donateRef} className="donate reveal">
+            <span className="donate-icon"><Droplet size={36} aria-hidden="true" /></span>
+            <div>
+              <Kicker icon={HeartPulse}>تبرّع بالدم</Kicker>
+              <h2>ساهم، تبرّع، أنقذ حياة</h2>
+              <p>بحاجة إلى دم الآن؟ اتصل بنا مباشرة لنراجع قائمة المتبرعين المتاحين. أو سجّل بياناتك لتكون من ضمن المتبرعين الجاهزين عند الحاجة.</p>
+            </div>
+            <div className="actions">
+              {settings.phone && <a className="btn hi" href={`tel:${settings.phone}`}><Phone size={16} aria-hidden="true" /> <bdi>{settings.phone}</bdi></a>}
+              <Link className="btn primary" to="/blood-donation">
+                سجّل كمتبرع <ArrowLeft size={16} aria-hidden="true" />
+              </Link>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* ================= WHATSAPP CHANNEL ================= */}
       {settings.whatsapp_channel && (

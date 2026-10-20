@@ -13,6 +13,7 @@ import News from './pages/News.jsx';
 import PostDetail from './pages/PostDetail.jsx';
 import Gallery from './pages/Gallery.jsx';
 import Contact from './pages/Contact.jsx';
+import BloodDonation from './pages/BloodDonation.jsx';
 import Login from './pages/admin/Login.jsx';
 import Dashboard from './pages/admin/Dashboard.jsx';
 import Posts from './pages/admin/Posts.jsx';
@@ -31,6 +32,7 @@ import AmbulanceCategoriesAdmin from './pages/admin/AmbulanceCategoriesAdmin.jsx
 import AmbulanceAssetsAdmin from './pages/admin/AmbulanceAssetsAdmin.jsx';
 import ScheduleAdmin from './pages/admin/ScheduleAdmin.jsx';
 import BloodDonationsAdmin from './pages/admin/BloodDonationsAdmin.jsx';
+import BloodDonorsAdmin from './pages/admin/BloodDonorsAdmin.jsx';
 import CommunityDonationsAdmin from './pages/admin/CommunityDonationsAdmin.jsx';
 import DonationItemTypesAdmin from './pages/admin/DonationItemTypesAdmin.jsx';
 import DocumentsAdmin from './pages/admin/DocumentsAdmin.jsx';
@@ -85,6 +87,7 @@ export default function App() {
           <Route path="/news/:id" element={<PostDetail category="news" />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/blood-donation" element={<BloodDonation />} />
         </Route>
         <Route path="/admin/login" element={<Login />} />
         <Route path="/admin" element={<AdminLayout />}>
@@ -110,6 +113,7 @@ export default function App() {
           <Route path="service-logs" element={<ServiceLogsAdmin />} />
           <Route path="schedule" element={<ScheduleAdmin />} />
           <Route path="blood-donations" element={<BloodDonationsAdmin />} />
+          <Route path="blood-donors" element={<BloodDonorsAdmin />} />
           <Route path="community-donations" element={<CommunityDonationsAdmin />} />
           <Route path="donation-item-types" element={<DonationItemTypesAdmin />} />
           <Route path="documents" element={<DocumentsAdmin />} />

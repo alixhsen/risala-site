@@ -152,4 +152,43 @@ router.post('/messages', messageLimiter, wrap(async (req, res) => {
   res.status(201).json({ ok: true });
 }));
 
+// ---------- blood donor registry ----------
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+// Counts only - never names, phones or any identifying info - so the
+// landing page can show "how many O- donors we have" without exposing the
+// list itself (staff see that in the admin panel).
+router.get('/blood-stats', wrap(async (req, res) => {
+  const byType = await query(`
+    SELECT blood_type,
+      SUM(CASE WHEN active = 1 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months')) THEN 1 ELSE 0 END) AS available,
+      COUNT(*) AS total
+    FROM dbo.BloodDonors GROUP BY blood_type`);
+  const [{ total_donations }] = await query('SELECT COUNT(*) AS total_donations FROM dbo.BloodDonations');
+  const counts = Object.fromEntries(BLOOD_TYPES.map((t) => [t, { available: 0, total: 0 }]));
+  for (const row of byType) counts[row.blood_type] = { available: row.available, total: row.total };
+  res.json({ by_type: counts, total_donations });
+}));
+
+const donorLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'محاولات كثيرة، حاول لاحقاً' },
+});
+
+router.post('/blood-donors', donorLimiter, wrap(async (req, res) => {
+  const name = str(req.body.name, 150);
+  const phone = str(req.body.phone, 40);
+  const blood_type = BLOOD_TYPES.includes(req.body.blood_type) ? req.body.blood_type : null;
+  const area = str(req.body.area, 100);
+  if (!name || !phone || !blood_type) return res.status(400).json({ error: 'الاسم ورقم الهاتف وفئة الدم مطلوبة' });
+  await query(
+    'INSERT INTO dbo.BloodDonors (name, phone, blood_type, area) VALUES (@name, @phone, @blood_type, @area)',
+    { name, phone, blood_type, area }
+  );
+  res.status(201).json({ ok: true });
+}));
+
 module.exports = router;

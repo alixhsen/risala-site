@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange, FileSignature } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange, FileSignature, HeartPulse } from 'lucide-react';
 import { api, logout } from '../lib/api.js';
 import { useSettings } from '../App.jsx';
 import { LOGO } from '../lib/brand.js';
@@ -51,6 +51,7 @@ const GROUPS = [
   ] },
   { title: 'الخدمات المجتمعية', items: [
     ['/admin/blood-donations', 'التبرع بالدم', Droplet, false, 'blood-donations'],
+    ['/admin/blood-donors', 'سجلّ متبرعي الدم', HeartPulse, false, 'blood-donations'],
     ['/admin/community-donations', 'خدمات عينية', Gift, false, 'community-donations'],
     ['/admin/donation-item-types', 'أصناف الخدمات العينية', Tags, false, 'donation-item-types'],
   ] },

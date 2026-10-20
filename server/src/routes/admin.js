@@ -89,6 +89,7 @@ router.use('/ambulance-categories', requireModule(['ambulance-finance', 'ambulan
 router.use('/ambulance-transactions', requireModule('ambulance-finance'));
 router.use('/ambulance-assets', requireModule('ambulance-assets'));
 router.use('/blood-donations', requireModule('blood-donations'));
+router.use('/blood-donors', requireModule('blood-donations'));
 // Donation item types feed community donations' item picker too.
 router.use('/donation-item-types', requireModule(['community-donations', 'donation-item-types']));
 router.use('/community-donations', requireModule('community-donations'));
@@ -506,7 +507,7 @@ router.delete('/gallery/:id', adminOnly, wrap(async (req, res) => {
 // ---------- settings ----------
 const TEXT_KEYS = ['site_name', 'line1', 'line2', 'line3', 'tagline', 'about_text', 'history_text',
   'phone', 'whatsapp', 'stat_volunteers', 'stat_vehicles', 'stat_missions', 'stat_years',
-  'hero_quote', 'hero_quote_author', 'report_photos'];
+  'hero_quote', 'hero_quote_author', 'report_photos', 'blood_phones'];
 const IMAGE_KEYS = ['logo_url', 'hero_url'];
 const LINK_KEYS = ['facebook', 'instagram', 'donate_url', 'whatsapp_channel'];
 
@@ -1273,6 +1274,74 @@ router.put('/blood-donations/:id', wrap(async (req, res) => {
 router.delete('/blood-donations/:id', adminOnly, wrap(async (req, res) => {
   const id = idParam(req);
   if (id) await query('DELETE FROM dbo.BloodDonations WHERE id = @id', { id });
+  res.json({ ok: true });
+}));
+
+// ---------- blood donor registry ----------
+// Public-submitted list staff search by blood type when a need comes in.
+// `available` is computed, not stored: a donor is available once active and
+// either never donated or it's been 6+ months since their last donation.
+const readBloodDonor = (b) => ({
+  name: str(b.name, 150),
+  phone: str(b.phone, 40),
+  blood_type: BLOOD_TYPES.includes(b.blood_type) ? b.blood_type : null,
+  area: str(b.area, 100),
+  notes: str(b.notes, 500),
+});
+
+router.get('/blood-donors', wrap(async (req, res) => {
+  const type = BLOOD_TYPES.includes(req.query.type) ? req.query.type : null;
+  const onlyAvailable = req.query.available === '1';
+  const where = ['1=1'];
+  const params = { type };
+  if (type) where.push('blood_type = @type');
+  if (onlyAvailable) where.push("active = 1 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months'))");
+  res.json(await query(`
+    SELECT *,
+      CASE WHEN active = 1 AND (last_donation_date IS NULL OR date(last_donation_date) <= date('now', '-6 months'))
+        THEN 1 ELSE 0 END AS available
+    FROM dbo.BloodDonors
+    WHERE ${where.join(' AND ')}
+    ORDER BY blood_type, name`, params));
+}));
+
+router.post('/blood-donors', wrap(async (req, res) => {
+  const d = readBloodDonor(req.body);
+  if (!d.name || !d.phone || !d.blood_type) return res.status(400).json({ error: 'الاسم والهاتف وفئة الدم مطلوبة' });
+  const [row] = await query(`
+    INSERT INTO dbo.BloodDonors (name, phone, blood_type, area, notes)
+    OUTPUT INSERTED.id VALUES (@name, @phone, @blood_type, @area, @notes)`, d);
+  res.status(201).json({ id: row.id });
+}));
+
+router.put('/blood-donors/:id', wrap(async (req, res) => {
+  const id = idParam(req);
+  const d = readBloodDonor(req.body);
+  if (!id || !d.name || !d.phone || !d.blood_type) return res.status(400).json({ error: 'الاسم والهاتف وفئة الدم مطلوبة' });
+  await query(`
+    UPDATE dbo.BloodDonors SET name = @name, phone = @phone, blood_type = @blood_type, area = @area, notes = @notes
+    WHERE id = @id`, { ...d, id });
+  res.json({ ok: true });
+}));
+
+router.post('/blood-donors/:id/mark-donated', wrap(async (req, res) => {
+  const id = idParam(req);
+  if (!id) return res.status(404).json({ error: 'غير موجود' });
+  const donation_date = dateOnly(req.body.donation_date) || dateOnly(new Date().toISOString());
+  await query('UPDATE dbo.BloodDonors SET last_donation_date = @donation_date WHERE id = @id', { id, donation_date });
+  res.json({ ok: true });
+}));
+
+router.put('/blood-donors/:id/active', wrap(async (req, res) => {
+  const id = idParam(req);
+  if (!id) return res.status(404).json({ error: 'غير موجود' });
+  await query('UPDATE dbo.BloodDonors SET active = @active WHERE id = @id', { id, active: req.body.active ? 1 : 0 });
+  res.json({ ok: true });
+}));
+
+router.delete('/blood-donors/:id', adminOnly, wrap(async (req, res) => {
+  const id = idParam(req);
+  if (id) await query('DELETE FROM dbo.BloodDonors WHERE id = @id', { id });
   res.json({ ok: true });
 }));
 

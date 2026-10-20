@@ -421,6 +421,23 @@ CREATE TABLE dbo.BloodDonations (
 );
 GO
 
+-- Public blood-donor registry: anyone can submit their own info from the
+-- public site. Staff search this list by blood type when a need comes in,
+-- then mark whoever actually gave blood - last_donation_date drives the
+-- six-month cooldown so the same donor isn't called again too soon.
+CREATE TABLE dbo.BloodDonors (
+  id                 INT IDENTITY(1,1) PRIMARY KEY,
+  name               NVARCHAR(150) NOT NULL,
+  phone              NVARCHAR(40) NOT NULL,
+  blood_type         NVARCHAR(5) NOT NULL CONSTRAINT CK_BloodDonors_type CHECK (blood_type IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
+  area               NVARCHAR(100) NULL,
+  notes              NVARCHAR(500) NULL,
+  last_donation_date DATE NULL,
+  active             BIT NOT NULL CONSTRAINT DF_BloodDonors_active DEFAULT 1,
+  created_at         DATETIME2 NOT NULL CONSTRAINT DF_BloodDonors_created DEFAULT SYSUTCDATETIME()
+);
+GO
+
 -- Donated-item types (دواء، حفاضات أطفال، حليب أطفال...) - managed list,
 -- same pattern as ServiceTypes.
 IF OBJECT_ID('dbo.DonationItemTypes', 'U') IS NULL

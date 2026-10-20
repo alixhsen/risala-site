@@ -15,12 +15,13 @@ const NAV = [
   ['/news', 'الأخبار'],
   ['/team', 'الفريق'],
   ['/gallery', 'المعرض'],
+  ['/blood-donation', 'التبرع بالدم'],
   ['/about', 'من نحن'],
 ];
 
 const FOOTER_LINKS = [
   ['استكشف', [['/about', 'من نحن'], ['/team', 'الفريق'], ['/gallery', 'معرض الصور']]],
-  ['الميدان', [['/missions', 'المهام'], ['/activities', 'الأنشطة'], ['/news', 'الأخبار']]],
+  ['الميدان', [['/missions', 'المهام'], ['/activities', 'الأنشطة'], ['/news', 'الأخبار'], ['/blood-donation', 'التبرع بالدم']]],
 ];
 
 export default function SiteLayout({ notFound }) {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useLoad, useSettings } from '../../App.jsx';
 import ImageInput from '../../components/ImageInput.jsx';
 import { api } from '../../lib/api.js';
@@ -81,8 +82,41 @@ export default function Settings() {
           <Text label="رابط فيسبوك" k="facebook" dir="ltr" placeholder="https://" {...p} />
           <Text label="رابط إنستغرام" k="instagram" dir="ltr" placeholder="https://" {...p} />
         </div>
-        <Text label="رابط منصة التبرع بالدم (تظهر في الصفحة الرئيسية)" k="donate_url" dir="ltr" placeholder="https://" {...p} />
         <Text label="رابط قناة واتساب (تظهر في الصفحة الرئيسية)" k="whatsapp_channel" dir="ltr" placeholder="https://whatsapp.com/channel/…" {...p} />
+      </div>
+
+      <div className="card form">
+        <h2>أرقام هاتف التبرع بالدم</h2>
+        <p className="hint">تظهر هذه الأرقام للاتصال في صفحة التبرع بالدم بدل رقم الطوارئ العام. اتركها فارغة لاستخدام رقم الطوارئ العام هناك أيضاً.</p>
+        {parseList(form.blood_phones).map((phone, i) => (
+          <div className="field-row" key={i}>
+            <label className="field"><span>رقم {i + 1}</span>
+              <input
+                dir="ltr"
+                value={phone}
+                onChange={(e) => {
+                  const list = [...parseList(form.blood_phones)];
+                  list[i] = e.target.value;
+                  set({ blood_phones: JSON.stringify(list) });
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => set({ blood_phones: JSON.stringify(parseList(form.blood_phones).filter((_, idx) => idx !== i)) })}
+            >
+              <Trash2 size={15} aria-hidden="true" /> حذف
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="btn outline"
+          onClick={() => set({ blood_phones: JSON.stringify([...parseList(form.blood_phones), '']) })}
+        >
+          <Plus size={15} aria-hidden="true" /> إضافة رقم
+        </button>
       </div>
 
       <div className="card form">

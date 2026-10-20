@@ -1,11 +1,13 @@
 import { useDialog } from '../../components/admin/Dialog.jsx';
 import { useMemo, useState } from 'react';
-import { Pencil, Trash2, Plus, Droplet, Check, X, FileSpreadsheet } from 'lucide-react';
-import { useLoad } from '../../App.jsx';
+import { Pencil, Trash2, Plus, Droplet, Check, X, FileSpreadsheet, Download, Share2 } from 'lucide-react';
+import { useLoad, useSettings } from '../../App.jsx';
 import { AdminHead, FormSection, SaveBar } from '../../components/admin/AdminPage.jsx';
 import { StatTiles, FilterBar, EmptyPanel, IconButton } from '../../components/admin/DataPage.jsx';
 import { api, formatDate } from '../../lib/api.js';
 import { toCsv, downloadCsv } from '../../lib/csv.js';
+import { generateBloodDonationsPdf } from '../../lib/bloodDonationsPdf.js';
+import { generateBloodDonationsSocial } from '../../lib/bloodDonationsSocial.js';
 
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const EMPTY = { donor_name: '', donation_date: new Date().toISOString().slice(0, 10), blood_type: '', hospital: '', recipient_name: '', notes: '' };
@@ -14,10 +16,12 @@ const EMPTY = { donor_name: '', donation_date: new Date().toISOString().slice(0,
 // recipient/hospital.
 export default function BloodDonationsAdmin() {
   const { confirm, notify } = useDialog();
+  const { settings } = useSettings();
   const { data, error, reload } = useLoad('/admin/blood-donations', []);
   const [form, setForm] = useState(null);
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState('');
   const [search, setSearch] = useState('');
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
@@ -52,6 +56,30 @@ export default function BloodDonationsAdmin() {
     downloadCsv(`التبرع-بالدم-${stamp}`, toCsv(columns, rows));
   }
 
+  // Aggregate counts only (totals and a per-type breakdown) - no donor names,
+  // hospitals or recipients, so either file is safe to hand out or post.
+  async function downloadReportPdf() {
+    setReportBusy('pdf');
+    try {
+      await generateBloodDonationsPdf({ settings, rows: data });
+    } catch (err) {
+      notify(err.message || 'تعذّر إنشاء الملف');
+    } finally {
+      setReportBusy('');
+    }
+  }
+
+  async function downloadReportImage() {
+    setReportBusy('image');
+    try {
+      await generateBloodDonationsSocial({ settings, rows: data });
+    } catch (err) {
+      notify(err.message || 'تعذّر إنشاء الصورة');
+    } finally {
+      setReportBusy('');
+    }
+  }
+
   async function save(e) {
     e.preventDefault();
     setFormError('');
@@ -84,6 +112,12 @@ export default function BloodDonationsAdmin() {
           <>
             <button type="button" className="btn" onClick={exportRows} disabled={rows.length === 0} title="تصدير التبرعات المعروضة في القائمة">
               <FileSpreadsheet size={16} aria-hidden="true" /> تصدير CSV
+            </button>
+            <button type="button" className="btn" onClick={downloadReportPdf} disabled={reportBusy !== ''} title="تقرير إحصائي بصيغة PDF">
+              <Download size={16} aria-hidden="true" /> {reportBusy === 'pdf' ? 'جارٍ الإنشاء…' : 'تقرير PDF'}
+            </button>
+            <button type="button" className="btn outline" onClick={downloadReportImage} disabled={reportBusy !== ''} title="تقرير إحصائي كصورة للمشاركة">
+              <Share2 size={16} aria-hidden="true" /> {reportBusy === 'image' ? 'جارٍ الإنشاء…' : 'صورة للمشاركة'}
             </button>
             <button type="button" className="btn primary" onClick={() => { setFormError(''); setForm(EMPTY); }}><Plus size={16} aria-hidden="true" /> تبرّع جديد</button>
           </>

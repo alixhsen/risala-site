@@ -156,7 +156,10 @@ export default function SiteLayout({ notFound }) {
         </div>
 
         <div className="wrap footer-bottom">
-          <span>© {new Date().getFullYear()} جميع الحقوق محفوظة</span>
+          <span>
+            © {new Date().getFullYear()} جميع الحقوق محفوظة · تصميم وتطوير{' '}
+            <a href="https://alihsen26.vercel.app/" target="_blank" rel="noreferrer">علي حسين حسين</a>
+          </span>
           <Link to="/contact">تواصل معنا <ArrowLeft size={14} aria-hidden="true" /></Link>
         </div>
       </footer>

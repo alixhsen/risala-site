@@ -124,6 +124,10 @@ export default function Home() {
     [settings.stat_years, 'سنة في الخدمة', Calendar],
   ].filter(([n]) => Number(n) > 0);
 
+  let bloodPhones = [];
+  try { bloodPhones = JSON.parse(settings.blood_phones || '[]').filter(Boolean); } catch { bloodPhones = []; }
+  const donateCallNumbers = bloodPhones.length ? bloodPhones : (settings.phone ? [settings.phone] : []);
+
   return (
     <>
       <Hero settings={settings} />
@@ -321,7 +325,9 @@ export default function Home() {
               <p>بحاجة إلى دم الآن؟ اتصل بنا مباشرة لنراجع قائمة المتبرعين المتاحين. أو سجّل بياناتك لتكون من ضمن المتبرعين الجاهزين عند الحاجة.</p>
             </div>
             <div className="actions">
-              {settings.phone && <a className="btn hi" href={`tel:${settings.phone}`}><Phone size={16} aria-hidden="true" /> <bdi>{settings.phone}</bdi></a>}
+              {donateCallNumbers.map((n) => (
+                <a key={n} className="btn hi" href={`tel:${n}`}><Phone size={16} aria-hidden="true" /> <bdi>{n}</bdi></a>
+              ))}
               <Link className="btn primary" to="/blood-donation">
                 سجّل كمتبرع <ArrowLeft size={16} aria-hidden="true" />
               </Link>

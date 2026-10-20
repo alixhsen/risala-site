@@ -183,12 +183,22 @@ CREATE TABLE IF NOT EXISTS ServiceTypes (
 CREATE TABLE IF NOT EXISTS ServiceLogs (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   service_type_id INTEGER NOT NULL REFERENCES ServiceTypes(id),
-  team_member_id  INTEGER REFERENCES TeamMembers(id),
+  title           TEXT,
+  cover_url       TEXT,
   quantity        INTEGER NOT NULL DEFAULT 1,
   service_date    TEXT NOT NULL,
   notes           TEXT,
   created_by      INTEGER REFERENCES Users(id),
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Team members who took part in a logged service - many-to-many, same shape
+-- as PostParamedics for missions, so a service can credit more than one
+-- member in the per-member reports.
+CREATE TABLE IF NOT EXISTS ServiceLogMembers (
+  service_log_id INTEGER NOT NULL REFERENCES ServiceLogs(id) ON DELETE CASCADE,
+  team_member_id INTEGER NOT NULL REFERENCES TeamMembers(id) ON DELETE CASCADE,
+  PRIMARY KEY (service_log_id, team_member_id)
 );
 
 CREATE TABLE IF NOT EXISTS AmbulanceCategories (

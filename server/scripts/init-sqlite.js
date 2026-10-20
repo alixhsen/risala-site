@@ -200,6 +200,23 @@ function addColumnIfMissing(db, table, column, ddl) {
 function migrateColumns(db) {
   addColumnIfMissing(db, 'BloodDonors', 'birth_date', 'birth_date TEXT');
   addColumnIfMissing(db, 'BloodDonors', 'discarded', 'discarded INTEGER NOT NULL DEFAULT 0');
+  addColumnIfMissing(db, 'ServiceLogs', 'title', 'title TEXT');
+  addColumnIfMissing(db, 'ServiceLogs', 'cover_url', 'cover_url TEXT');
+}
+
+// ServiceLogs.team_member_id (single, nullable) became ServiceLogMembers
+// (many-to-many, same shape as Posts/PostParamedics) so one logged service
+// can credit more than one team member. Existing values are carried over
+// into the join table before the old column is dropped, so no history is
+// lost - and this is a no-op once the column is already gone.
+function migrateServiceLogMembers(db) {
+  const cols = db.prepare('PRAGMA table_info(ServiceLogs)').all().map((c) => c.name);
+  if (!cols.includes('team_member_id')) return;
+  db.exec(`
+    INSERT OR IGNORE INTO ServiceLogMembers (service_log_id, team_member_id)
+    SELECT id, team_member_id FROM ServiceLogs WHERE team_member_id IS NOT NULL`);
+  db.exec('ALTER TABLE ServiceLogs DROP COLUMN team_member_id');
+  console.log('ServiceLogs: migrated team_member_id into ServiceLogMembers and dropped the column.');
 }
 
 function main() {
@@ -210,6 +227,7 @@ function main() {
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
   db.exec(schema);
   migrateColumns(db);
+  migrateServiceLogMembers(db);
   console.log(`Schema ready at ${DB_PATH}`);
 
   if (!fs.existsSync(EXPORT_PATH)) {

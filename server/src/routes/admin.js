@@ -404,7 +404,8 @@ router.get('/team/:id/history', wrap(async (req, res) => {
   );
   const [sCount] = await query(
     `SELECT COUNT(*) AS n, COALESCE(SUM(l.quantity), 0) AS qty
-     FROM dbo.ServiceLogs l WHERE l.team_member_id = @id AND ${sWhere}`,
+     FROM dbo.ServiceLogs l JOIN dbo.ServiceLogMembers slm ON slm.service_log_id = l.id
+     WHERE slm.team_member_id = @id AND ${sWhere}`,
     period
   );
   const mPages = Math.max(1, Math.ceil(mCount.n / HISTORY_PAGE));
@@ -425,8 +426,9 @@ router.get('/team/:id/history', wrap(async (req, res) => {
   const services = await query(
     `SELECT l.id, l.quantity, l.service_date, l.notes, st.name AS type_name
      FROM dbo.ServiceLogs l
+     JOIN dbo.ServiceLogMembers slm ON slm.service_log_id = l.id
      JOIN dbo.ServiceTypes st ON st.id = l.service_type_id
-     WHERE l.team_member_id = @id AND ${sWhere}
+     WHERE slm.team_member_id = @id AND ${sWhere}
      ORDER BY l.service_date DESC, l.id DESC
      OFFSET @offset ROWS FETCH NEXT @size ROWS ONLY`,
     { ...period, offset: (spage - 1) * HISTORY_PAGE, size: HISTORY_PAGE }
@@ -438,7 +440,9 @@ router.get('/team/:id/history', wrap(async (req, res) => {
        JOIN dbo.Posts p ON p.id = pp.post_id
        WHERE pp.team_member_id = @id AND p.category = 'mission' AND p.event_date IS NOT NULL
      UNION
-     SELECT DISTINCT CAST(strftime('%Y', service_date) AS INTEGER) AS y FROM dbo.ServiceLogs WHERE team_member_id = @id
+     SELECT DISTINCT CAST(strftime('%Y', l.service_date) AS INTEGER) AS y
+       FROM dbo.ServiceLogs l JOIN dbo.ServiceLogMembers slm ON slm.service_log_id = l.id
+       WHERE slm.team_member_id = @id
      ORDER BY y DESC`,
     { id }
   );
@@ -892,29 +896,70 @@ router.delete('/service-types/:id', adminOnly, wrap(async (req, res) => {
 }));
 
 // ---------- medical service logs ----------
+// `team_member_id` used to be a single nullable column; it's now
+// ServiceLogMembers (many-to-many, same shape as Posts/PostParamedics) so a
+// service can credit every team member who took part, not just one.
+function readServiceLog(body) {
+  return {
+    service_type_id: Number(body.service_type_id),
+    title: str(body.title, 200),
+    cover_url: uploadUrl(body.cover_url),
+    quantity: Number.isInteger(Number(body.quantity)) && Number(body.quantity) > 0 ? Number(body.quantity) : 1,
+    service_date: dateOnly(body.service_date) || new Date().toISOString().slice(0, 10),
+    notes: str(body.notes, 500),
+  };
+}
+
+async function replaceServiceLogMembers(logId, ids) {
+  await query('DELETE FROM dbo.ServiceLogMembers WHERE service_log_id = @id', { id: logId });
+  for (const memberId of intList(ids)) {
+    await query('INSERT INTO dbo.ServiceLogMembers (service_log_id, team_member_id) VALUES (@id, @m)', { id: logId, m: memberId });
+  }
+}
+
 router.get('/service-logs', wrap(async (req, res) => {
   res.json(await query(`
-    SELECT l.id, l.service_type_id, st.name AS service_type_name, l.team_member_id, tm.name AS team_member_name,
-           l.quantity, l.service_date, l.notes, l.created_at, u.display_name AS created_by_name
+    SELECT l.id, l.service_type_id, st.name AS service_type_name, l.title, l.cover_url,
+           l.quantity, l.service_date, l.notes, l.created_at, u.display_name AS created_by_name,
+           (SELECT GROUP_CONCAT(tm.name, '، ') FROM dbo.ServiceLogMembers slm
+              JOIN dbo.TeamMembers tm ON tm.id = slm.team_member_id WHERE slm.service_log_id = l.id) AS member_names,
+           (SELECT COUNT(*) FROM dbo.ServiceLogMembers slm WHERE slm.service_log_id = l.id) AS member_count
     FROM dbo.ServiceLogs l
     JOIN dbo.ServiceTypes st ON st.id = l.service_type_id
-    LEFT JOIN dbo.TeamMembers tm ON tm.id = l.team_member_id
     LEFT JOIN dbo.Users u ON u.id = l.created_by
     ORDER BY l.service_date DESC, l.id DESC`));
 }));
 
+router.get('/service-logs/:id', wrap(async (req, res) => {
+  const id = idParam(req);
+  const rows = id ? await query('SELECT * FROM dbo.ServiceLogs WHERE id = @id', { id }) : [];
+  if (!rows.length) return res.status(404).json({ error: 'غير موجود' });
+  const members = await query('SELECT team_member_id FROM dbo.ServiceLogMembers WHERE service_log_id = @id', { id });
+  res.json({ ...rows[0], member_ids: members.map((m) => m.team_member_id) });
+}));
+
 router.post('/service-logs', wrap(async (req, res) => {
-  const service_type_id = Number(req.body.service_type_id);
-  const team_member_id = Number(req.body.team_member_id) || null;
-  const quantity = Number.isInteger(Number(req.body.quantity)) && Number(req.body.quantity) > 0 ? Number(req.body.quantity) : 1;
-  const service_date = dateOnly(req.body.service_date) || new Date().toISOString().slice(0, 10);
-  const notes = str(req.body.notes, 500);
-  if (!Number.isInteger(service_type_id) || service_type_id <= 0) return res.status(400).json({ error: 'اختر نوع الخدمة' });
+  const d = readServiceLog(req.body);
+  if (!Number.isInteger(d.service_type_id) || d.service_type_id <= 0) return res.status(400).json({ error: 'اختر نوع الخدمة' });
   const [row] = await query(`
-    INSERT INTO dbo.ServiceLogs (service_type_id, team_member_id, quantity, service_date, notes, created_by)
-    OUTPUT INSERTED.id VALUES (@service_type_id, @team_member_id, @quantity, @service_date, @notes, @uid)`,
-    { service_type_id, team_member_id, quantity, service_date, notes, uid: req.user.id });
+    INSERT INTO dbo.ServiceLogs (service_type_id, title, cover_url, quantity, service_date, notes, created_by)
+    OUTPUT INSERTED.id VALUES (@service_type_id, @title, @cover_url, @quantity, @service_date, @notes, @uid)`,
+    { ...d, uid: req.user.id });
+  await replaceServiceLogMembers(row.id, req.body.member_ids);
   res.status(201).json({ id: row.id });
+}));
+
+router.put('/service-logs/:id', wrap(async (req, res) => {
+  const id = idParam(req);
+  if (!id) return res.status(404).json({ error: 'غير موجود' });
+  const d = readServiceLog(req.body);
+  if (!Number.isInteger(d.service_type_id) || d.service_type_id <= 0) return res.status(400).json({ error: 'اختر نوع الخدمة' });
+  await query(`
+    UPDATE dbo.ServiceLogs SET service_type_id = @service_type_id, title = @title, cover_url = @cover_url,
+      quantity = @quantity, service_date = @service_date, notes = @notes
+    WHERE id = @id`, { ...d, id });
+  await replaceServiceLogMembers(id, req.body.member_ids);
+  res.json({ ok: true });
 }));
 
 router.delete('/service-logs/:id', adminOnly, wrap(async (req, res) => {
@@ -930,11 +975,9 @@ router.get('/reports/services', adminOnly, wrap(async (req, res) => {
   const month = Math.min(Math.max(Number(req.query.month) || now.getUTCMonth() + 1, 1), 12);
 
   const logs = await query(
-    `SELECT l.id, l.quantity, l.service_date, st.name AS type_name,
-            tm.id AS member_id, tm.name AS member_name, tm.group_name, tm.photo_url
+    `SELECT l.id, l.quantity, l.service_date, st.name AS type_name
      FROM dbo.ServiceLogs l
      JOIN dbo.ServiceTypes st ON st.id = l.service_type_id
-     LEFT JOIN dbo.TeamMembers tm ON tm.id = l.team_member_id
      WHERE CAST(strftime('%Y', l.service_date) AS INTEGER) = @year AND CAST(strftime('%m', l.service_date) AS INTEGER) = @month
      ORDER BY l.service_date`,
     { year, month }
@@ -946,9 +989,23 @@ router.get('/reports/services', adminOnly, wrap(async (req, res) => {
   for (const l of logs) byType.set(l.type_name, (byType.get(l.type_name) || 0) + l.quantity);
   const types = [...byType.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
 
+  // A service with several members credits each of them in full (same as
+  // how a mission with several paramedics credits each one), so this is a
+  // separate query joined through ServiceLogMembers rather than reusing
+  // `logs` above, which would double-count totalServices/types otherwise.
+  const memberLogs = await query(
+    `SELECT l.id, l.quantity, l.service_date, st.name AS type_name,
+            tm.id AS member_id, tm.name AS member_name, tm.group_name, tm.photo_url
+     FROM dbo.ServiceLogs l
+     JOIN dbo.ServiceLogMembers slm ON slm.service_log_id = l.id
+     JOIN dbo.TeamMembers tm ON tm.id = slm.team_member_id
+     JOIN dbo.ServiceTypes st ON st.id = l.service_type_id
+     WHERE CAST(strftime('%Y', l.service_date) AS INTEGER) = @year AND CAST(strftime('%m', l.service_date) AS INTEGER) = @month`,
+    { year, month }
+  );
+
   const byMember = new Map();
-  for (const l of logs) {
-    if (!l.member_id) continue;
+  for (const l of memberLogs) {
     if (!byMember.has(l.member_id)) {
       byMember.set(l.member_id, { id: l.member_id, name: l.member_name, group_name: l.group_name, photo_url: l.photo_url, services: [] });
     }

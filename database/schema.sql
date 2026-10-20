@@ -240,12 +240,23 @@ IF OBJECT_ID('dbo.ServiceLogs', 'U') IS NULL
 CREATE TABLE dbo.ServiceLogs (
   id              INT IDENTITY(1,1) PRIMARY KEY,
   service_type_id INT NOT NULL REFERENCES dbo.ServiceTypes(id),
-  team_member_id  INT NULL REFERENCES dbo.TeamMembers(id),
+  title           NVARCHAR(200) NULL,
+  cover_url       NVARCHAR(300) NULL,
   quantity        INT NOT NULL CONSTRAINT DF_SvcLog_qty DEFAULT 1,
   service_date    DATE NOT NULL,
   notes           NVARCHAR(500) NULL,
   created_by      INT NULL REFERENCES dbo.Users(id),
   created_at      DATETIME2 NOT NULL CONSTRAINT DF_SvcLog_created DEFAULT SYSUTCDATETIME()
+);
+GO
+
+-- Team members who took part in a logged service - many-to-many, same shape
+-- as PostParamedics for missions.
+IF OBJECT_ID('dbo.ServiceLogMembers', 'U') IS NULL
+CREATE TABLE dbo.ServiceLogMembers (
+  service_log_id INT NOT NULL REFERENCES dbo.ServiceLogs(id) ON DELETE CASCADE,
+  team_member_id INT NOT NULL REFERENCES dbo.TeamMembers(id) ON DELETE CASCADE,
+  CONSTRAINT PK_ServiceLogMembers PRIMARY KEY (service_log_id, team_member_id)
 );
 GO
 

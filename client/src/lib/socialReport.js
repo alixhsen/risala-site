@@ -161,8 +161,12 @@ export async function generateSocialReport({ settings, data, photoUrls = [] }) {
   };
   shown.forEach((r, i) => drawRow(r.name, r.count, i % 2 === 1));
 
-  // Total row
-  const total = data.missionsTotal + data.servicesTotal;
+  // Total row - every row in the table above, not just missions and
+  // services: mission types (missionsTotal covers all of them, counted once
+  // even when some are rolled into the "other" overflow row) plus every
+  // fixed row (services, activities, blood donations, community donations).
+  const total = data.missionsTotal + data.servicesTotal + data.activitiesTotal
+    + data.bloodDonationsTotal + data.communityDonationsQuantity;
   const totalY = panelY + panelH - 112;
   cx.fillStyle = C.line;
   cx.fillRect(panelX + 24, totalY - 14, panelW - 48, 2);
@@ -172,7 +176,6 @@ export async function generateSocialReport({ settings, data, photoUrls = [] }) {
   cx.fill();
   put('الإجمالي', W - 110, totalY + 52, 32, 900, C.gold);
   put(`${total}`, 110, totalY + 56, 50, 900, '#ffffff', 'left');
-  put(`${data.missionsTotal} مهمة · ${data.servicesTotal} خدمة`, W / 2 + 40, totalY + 50, 22, 700, 'rgba(255,255,255,0.85)', 'center');
 
   // ----- Emergency bar -----
   const barY = 1116;

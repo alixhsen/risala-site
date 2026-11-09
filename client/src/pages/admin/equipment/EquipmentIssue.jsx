@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { PackagePlus, Plus, Trash2, Printer, FileDown, Check, RotateCcw } from 'lucide-react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { PackagePlus, Plus, Trash2, Printer, FileDown, Check, RotateCcw, X } from 'lucide-react';
 import { useLoad, useSettings } from '../../../App.jsx';
 import { useAdmin } from '../../../components/AdminLayout.jsx';
 import { useDialog } from '../../../components/admin/Dialog.jsx';
 import { AdminHead, FormSection, SaveBar } from '../../../components/admin/AdminPage.jsx';
 import { IconButton, EmptyPanel } from '../../../components/admin/DataPage.jsx';
-import { MemberPicker, CustodyAlert, openVoucher } from '../../../components/admin/EquipmentParts.jsx';
+import { MemberPicker, CustodyAlert, StatusBadge, openVoucher } from '../../../components/admin/EquipmentParts.jsx';
 import { api } from '../../../lib/api.js';
 import { isActiveMember, memberNo, MEMBER_STATUS } from '../../../lib/equipment.js';
 
@@ -16,8 +16,10 @@ const blankRow = () => ({ key: Math.random().toString(36).slice(2), type_id: '',
 export default function EquipmentIssue() {
   const admin = useAdmin();
   const { settings } = useSettings();
-  const { notify } = useDialog();
+  const { notify, confirm } = useDialog();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { data: members, reload: reloadMembers } = useLoad('/admin/equipment/members', []);
   const { data: types, reload: reloadTypes } = useLoad('/admin/equipment/types', []);
   const { data: lines, reload: reloadLines } = useLoad('/admin/equipment/inventory', []);
@@ -46,6 +48,15 @@ export default function EquipmentIssue() {
   };
 
   const blocked = member && !isActiveMember(member.member_status);
+
+  // Back to wherever the form was opened from (or the section's home when it
+  // was opened directly), asking first if something was already filled in.
+  const dirty = rows.some((r) => r.inventory_id) || notes.trim() !== '' || (memberId && !params.get('member'));
+  async function cancel() {
+    if (dirty && !(await confirm('إلغاء هذه العملية؟ ستُفقد البيانات التي أدخلتها.', { title: 'إلغاء التسليم', confirmLabel: 'نعم، إلغاء', cancelLabel: 'متابعة التعبئة', danger: true }))) return;
+    if (location.key === 'default') navigate('/admin/equipment', { replace: true });
+    else navigate(-1);
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -108,7 +119,15 @@ export default function EquipmentIssue() {
       <form className="drawer-form" onSubmit={submit}>
         <FormSection icon={PackagePlus} title="العضو" help="البحث في أعضاء الفريق المسجّلين، بلا إنشاء أعضاء مكرّرين.">
           <MemberPicker members={members} value={memberId} onChange={setMemberId} />
-          {member && <p className="hint">رقم العضو {memberNo(member.id)}{member.outstanding > 0 && ` · لديه حالياً ${member.outstanding} غرض غير مسترجع`}</p>}
+          {member && (
+            <dl className="eq-member-card">
+              <div><dt>رقم العضو</dt><dd>{memberNo(member.id)}</dd></div>
+              <div><dt>الحالة</dt><dd><StatusBadge status={member.member_status} /></dd></div>
+              <div><dt>الهاتف</dt><dd>{member.phone ? <bdi dir="ltr">{member.phone}</bdi> : '—'}</dd></div>
+              <div><dt>المجموعة / الدور</dt><dd>{[member.group_name, member.role_title].filter(Boolean).join(' · ') || '—'}</dd></div>
+              <div><dt>عُهد غير مستردة</dt><dd>{member.outstanding > 0 ? <Link to={`/admin/equipment-custody?member=${member.id}`}>{member.outstanding} غرض (عرض)</Link> : 'لا يوجد'}</dd></div>
+            </dl>
+          )}
           {member && <CustodyAlert status={member.member_status} outstanding={member.outstanding} />}
           {blocked && <p className="error">لا يمكن تسليم عُهدة جديدة لعضو غير فعّال.</p>}
         </FormSection>
@@ -165,6 +184,7 @@ export default function EquipmentIssue() {
         </FormSection>
 
         <SaveBar error={error}>
+          <button type="button" className="btn" onClick={cancel}><X size={15} aria-hidden="true" /> إلغاء والعودة</button>
           <button className="btn primary" disabled={busy || !!blocked}><Check size={15} aria-hidden="true" /> {busy ? 'جارٍ الحفظ…' : 'حفظ وتسليم العُهدة'}</button>
         </SaveBar>
       </form>

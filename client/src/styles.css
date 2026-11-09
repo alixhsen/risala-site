@@ -2298,3 +2298,8 @@ tr.is-closed td { color: var(--ink-3); }
 }
 
 .nowrap { white-space: nowrap; }
+
+.eq-member-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 0; }
+.eq-member-card div { padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
+.eq-member-card dt { font-size: 12px; color: var(--ink-3); font-weight: 800; }
+.eq-member-card dd { margin: 3px 0 0; font-weight: 800; color: var(--ink); }

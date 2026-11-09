@@ -60,6 +60,26 @@ approval, but only an admin can publish, delete, or change settings and users).
   categories
 - A maintenance/equipment register for the vehicle itself
 
+**Equipment & custody (العُهد والتجهيزات)** — its own section in the sidebar,
+independent of the member profile
+- A dashboard (items registered / with members / in the warehouse / returned /
+  damaged / members holding items / items held by inactive members) and the
+  latest deliveries and returns
+- Item types (uniform, helmet, radio, ID card…) with category, description,
+  sizes, optional serial numbers and a minimum stock — added from the admin
+  page, never in code — plus warehouse stock per size or serial number
+- Deliver one or many items to a member (search the existing roster), partial
+  returns, replacements, and documented loss/damage — all in database
+  transactions, so stock can never be over-issued
+- A member whose status is stopped / withdrawn / dismissed / inactive is
+  flagged wherever they still hold items; a custody line only closes once
+  everything is returned or the shortage is documented with notes and a name
+- An append-only audit log (database triggers refuse edits and deletes), seven
+  filterable reports with print / PDF / Excel export, and a printable receipt
+  form with a pledge and signature boxes
+- Permissions: admin = everything; an editor can be granted *view*,
+  *authorised officer* (deliver / return / replace) and/or *types & stock*
+
 **Community services**
 - Blood-donation drive tracking
 - In-kind community donations (medicine, baby supplies, etc.) with a
@@ -93,6 +113,7 @@ server/
   src/index.js             Express app entry point
   src/routes/               auth, public (visitor-facing), admin API routes
   src/db.js                 SQLite connection + query helper
+  src/routes/equipment.js   equipment & custody API (transactions, audit log, reports)
   src/documentTemplates.js  the fillable-form registry (fields per template)
   src/docTemplates.js       fills a .docx template with submitted field values
   scripts/init-sqlite.js    creates the database, seed data and first admin account
@@ -141,6 +162,13 @@ Run from the project root:
 | `npm run dev`     | Runs the API and the client dev server together (with hot reload) |
 | `npm run build`   | Builds the production client bundle |
 | `npm start`       | Starts the production server (serves the API and the built client) |
+
+### Upgrading an existing install
+
+Run `npm run db:init` again after pulling. It is safe to repeat: it adds the
+equipment tables and the `TeamMembers.member_status` column (set each member's
+status — active, suspended, withdrawn, dismissed, inactive — on the team page)
+without touching existing data.
 
 ## Using the admin panel
 

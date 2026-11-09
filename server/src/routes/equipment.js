@@ -98,12 +98,57 @@ function appendTx(db, user, t) {
   );
 }
 
+// Finds the stock line an item refers to. Tracked types are picked from the
+// warehouse (inventory_id). Untracked types have no warehouse: the line for a
+// (type, size, serial) is created on first use and only anchors the custody.
+function resolveLine(db, spec) {
+  const invId = posInt(spec.inventory_id);
+  if (invId) {
+    const line = getLine(db, invId);
+    if (!line) throw bad('أحد الأغراض المختارة غير موجود', 404);
+    return line;
+  }
+  const typeId = posInt(spec.type_id);
+  const type = typeId && db.prepare('SELECT * FROM EquipmentTypes WHERE id = ?').get(typeId);
+  if (!type) throw bad('اختر الغرض');
+  if (type.tracks_stock) throw bad(`«${type.name}» يُتتبَّع مخزونه، اختر الكمية من المخزون`);
+  const sizes = parseSizes(type.sizes);
+  const size = str(spec.size, 30) || '';
+  if (sizes.length && !sizes.includes(size)) throw bad(`اختر مقاس «${type.name}»`);
+  if (!sizes.length && size) throw bad(`«${type.name}» لا يحتوي مقاسات`);
+  const serial = type.tracks_serial ? str(spec.serial_number, 80) : null;
+  if (type.tracks_serial && !serial) throw bad(`الرقم التسلسلي مطلوب لـ «${type.name}»`);
+  const existing = serial
+    ? db.prepare('SELECT id FROM EquipmentInventory WHERE type_id = ? AND serial_number = ?').get(type.id, serial)
+    : db.prepare('SELECT id FROM EquipmentInventory WHERE type_id = ? AND size = ? AND serial_number IS NULL').get(type.id, size);
+  const id = existing ? existing.id
+    : Number(db.prepare('INSERT INTO EquipmentInventory (type_id, size, serial_number, in_stock) VALUES (?,?,?,0)').run(type.id, size, serial).lastInsertRowid);
+  return getLine(db, id);
+}
+
+// Reserves `qty` of a line for a member. Tracked: takes it from the warehouse
+// (never below zero). Untracked: nothing to deduct, but a serial-numbered
+// item can only be with one person at a time.
+function takeFromStock(db, line, qty) {
+  if (!line.type_active) throw bad(`النوع «${line.type_name}» معطّل`, 409);
+  if (!line.tracks_stock) {
+    if (line.tracks_serial) {
+      const held = db.prepare(`SELECT COALESCE(SUM(${OUTSTANDING}), 0) AS n FROM MemberEquipment c WHERE c.inventory_id = ?`).get(line.id).n;
+      if (qty !== 1 || held > 0) throw bad(`«${lineLabel(line)}» مسلَّم لعضو آخر ولم يُسترجع بعد`, 409);
+    }
+    return;
+  }
+  if (line.in_stock < qty) throw bad(`الكمية المتوفرة من «${lineLabel(line)}» هي ${line.in_stock} فقط`, 409);
+  const upd = db.prepare("UPDATE EquipmentInventory SET in_stock = in_stock - ?, updated_at = datetime('now') WHERE id = ? AND in_stock >= ?").run(qty, line.id, qty);
+  if (upd.changes !== 1) throw bad(`تعذّر حجز «${lineLabel(line)}»، حدّث الصفحة وأعد المحاولة`, 409);
+}
+
 function lineLabel(line) {
   return [line.type_name, line.size, line.serial_number ? `#${line.serial_number}` : ''].filter(Boolean).join(' · ');
 }
 
 function getLine(db, id) {
-  return db.prepare(`SELECT i.*, t.name AS type_name, t.active AS type_active, t.tracks_serial
+  return db.prepare(`SELECT i.*, t.name AS type_name, t.active AS type_active, t.tracks_serial, t.tracks_stock
     FROM EquipmentInventory i JOIN EquipmentTypes t ON t.id = i.type_id WHERE i.id = ?`).get(id);
 }
 
@@ -187,13 +232,8 @@ router.post('/issues', canHandle, wrap(async (req, res) => {
   if (!issuer) throw bad('اسم المسؤول عن التسليم مطلوب');
   if (rawItems.length === 0) throw bad('اختر غرضاً واحداً على الأقل');
 
-  // Same stock line chosen twice -> one line with the summed quantity.
-  const wanted = new Map();
   for (const it of rawItems) {
-    const invId = posInt(it.inventory_id);
-    const qty = posInt(it.quantity);
-    if (!invId || !qty) throw bad('تأكد من الغرض والكمية في كل سطر');
-    wanted.set(invId, (wanted.get(invId) || 0) + qty);
+    if (!posInt(it.quantity) || !(posInt(it.inventory_id) || posInt(it.type_id))) throw bad('تأكد من الغرض والكمية في كل سطر');
   }
 
   const result = inTransaction((db) => {
@@ -206,16 +246,18 @@ router.post('/issues', canHandle, wrap(async (req, res) => {
       'INSERT INTO EquipmentIssues (member_id, issue_date, issuer_name, notes, created_by) VALUES (?,?,?,?,?)'
     ).run(memberId, issueDate, issuer, notes, req.user.id).lastInsertRowid);
 
+    // The same line chosen twice becomes one line with the summed quantity.
+    const wanted = new Map();
+    for (const it of rawItems) {
+      const line = resolveLine(db, it);
+      const entry = wanted.get(line.id) || { line, qty: 0 };
+      entry.qty += posInt(it.quantity);
+      wanted.set(line.id, entry);
+    }
+
     const custodyIds = [];
-    for (const [invId, qty] of wanted) {
-      const line = getLine(db, invId);
-      if (!line) throw bad('أحد الأغراض المختارة غير موجود', 404);
-      if (!line.type_active) throw bad(`النوع «${line.type_name}» معطّل`, 409);
-      if (line.in_stock < qty) {
-        throw bad(`الكمية المتوفرة من «${lineLabel(line)}» هي ${line.in_stock} فقط`, 409);
-      }
-      const upd = db.prepare('UPDATE EquipmentInventory SET in_stock = in_stock - ?, updated_at = datetime(\'now\') WHERE id = ? AND in_stock >= ?').run(qty, invId, qty);
-      if (upd.changes !== 1) throw bad(`تعذّر حجز «${lineLabel(line)}»، حدّث الصفحة وأعد المحاولة`, 409);
+    for (const [invId, { line, qty }] of wanted) {
+      takeFromStock(db, line, qty);
       const custodyId = Number(db.prepare(`INSERT INTO MemberEquipment
         (issue_id, member_id, type_id, inventory_id, size, serial_number, quantity, issued_on, notes)
         VALUES (?,?,?,?,?,?,?,?,?)`).run(issueId, memberId, line.type_id, invId, line.size, line.serial_number, qty, issueDate, notes).lastInsertRowid);
@@ -251,7 +293,7 @@ router.get('/members/:id/issues', canView, wrap(async (req, res) => {
 
 // ---------- return / loss / replacement ----------
 function getCustody(db, id) {
-  return db.prepare(`SELECT c.*, ${OUTSTANDING} AS outstanding, m.name AS member_name, t.name AS type_name
+  return db.prepare(`SELECT c.*, ${OUTSTANDING} AS outstanding, m.name AS member_name, t.name AS type_name, t.tracks_stock AS tracks_stock
     FROM MemberEquipment c JOIN TeamMembers m ON m.id = c.member_id JOIN EquipmentTypes t ON t.id = c.type_id
     WHERE c.id = ?`).get(id);
 }
@@ -266,7 +308,10 @@ function applyReturn(db, user, c, qty, condition, date, receiver, notes, kind) {
   if (qty > c.outstanding) throw bad(`المتبقي بحوزة العضو من «${c.type_name}» هو ${c.outstanding} فقط`, 409);
   const good = condition === 'good';
   db.prepare(`UPDATE MemberEquipment SET ${good ? 'returned_qty = returned_qty + ?' : 'returned_damaged_qty = returned_damaged_qty + ?'} WHERE id = ?`).run(qty, c.id);
-  db.prepare(`UPDATE EquipmentInventory SET ${good ? 'in_stock = in_stock + ?' : 'damaged = damaged + ?'}, updated_at = datetime('now') WHERE id = ?`).run(qty, c.inventory_id);
+  // Types without stock tracking have no warehouse to put the item back into.
+  if (c.tracks_stock) {
+    db.prepare(`UPDATE EquipmentInventory SET ${good ? 'in_stock = in_stock + ?' : 'damaged = damaged + ?'}, updated_at = datetime('now') WHERE id = ?`).run(qty, c.inventory_id);
+  }
   closeIfDone(db, c.id, date);
   appendTx(db, user, {
     kind, direction: 'in', member_id: c.member_id, member_name: c.member_name, type_id: c.type_id, type_name: c.type_name,
@@ -328,12 +373,12 @@ router.post('/custody/:id/loss', canHandle, wrap(async (req, res) => {
 router.post('/custody/:id/replace', canHandle, wrap(async (req, res) => {
   const id = idParam(req);
   const qty = posInt(req.body.quantity);
-  const newInvId = posInt(req.body.new_inventory_id);
+  const newSpec = { inventory_id: req.body.new_inventory_id, type_id: req.body.new_type_id, size: req.body.new_size, serial_number: req.body.new_serial_number };
   const oldCondition = ['good', 'needs_maintenance', 'damaged', 'lost'].includes(req.body.old_condition) ? req.body.old_condition : null;
   const date = dateOnly(req.body.date) || today();
   const person = str(req.body.person, 120);
   const notes = str(req.body.notes, 1000);
-  if (!id || !qty || !newInvId || !oldCondition) throw bad('بيانات غير مكتملة');
+  if (!id || !qty || !(posInt(newSpec.inventory_id) || posInt(newSpec.type_id)) || !oldCondition) throw bad('بيانات غير مكتملة');
   if (!person) throw bad('اسم المسؤول مطلوب');
   if (oldCondition !== 'good' && !notes) throw bad('اكتب ملاحظة عن حالة الغرض القديم');
 
@@ -358,12 +403,9 @@ router.post('/custody/:id/replace', canHandle, wrap(async (req, res) => {
     }
 
     // 2. issue the new one to the same member
-    const line = getLine(db, newInvId);
-    if (!line) throw bad('الغرض الجديد غير موجود', 404);
-    if (!line.type_active) throw bad(`النوع «${line.type_name}» معطّل`, 409);
-    if (line.in_stock < qty) throw bad(`الكمية المتوفرة من «${lineLabel(line)}» هي ${line.in_stock} فقط`, 409);
-    const upd = db.prepare('UPDATE EquipmentInventory SET in_stock = in_stock - ?, updated_at = datetime(\'now\') WHERE id = ? AND in_stock >= ?').run(qty, newInvId, qty);
-    if (upd.changes !== 1) throw bad('تعذّر حجز الغرض الجديد، أعد المحاولة', 409);
+    const line = resolveLine(db, newSpec);
+    const newInvId = line.id;
+    takeFromStock(db, line, qty);
     const issueId = Number(db.prepare('INSERT INTO EquipmentIssues (member_id, issue_date, issuer_name, notes, created_by) VALUES (?,?,?,?,?)')
       .run(c.member_id, date, person, notes ? `تبديل: ${notes}` : 'تبديل غرض', req.user.id).lastInsertRowid);
     const newCustody = Number(db.prepare(`INSERT INTO MemberEquipment
@@ -387,7 +429,7 @@ const typeStockSql = `
     COALESCE((SELECT SUM(${OUTSTANDING}) FROM MemberEquipment c WHERE c.type_id = t.id), 0) AS with_members
   FROM EquipmentTypes t`;
 
-const withSizes = (row) => ({ ...row, sizes: parseSizes(row.sizes), tracks_serial: !!row.tracks_serial, active: !!row.active });
+const withSizes = (row) => ({ ...row, sizes: parseSizes(row.sizes), tracks_serial: !!row.tracks_serial, tracks_stock: !!row.tracks_stock, active: !!row.active });
 
 router.get('/types', canView, wrap(async (req, res) => {
   res.json(all(`${typeStockSql} ORDER BY t.active DESC, t.category, t.name`).map(withSizes));
@@ -401,6 +443,7 @@ function readType(b) {
   return {
     name, category: str(b.category, 80), description: str(b.description, 500),
     sizes: JSON.stringify(readSizes(b.sizes)), tracks_serial: b.tracks_serial ? 1 : 0,
+    tracks_stock: b.tracks_stock === false || b.tracks_stock === 0 ? 0 : 1,
     min_stock: minStock, active: b.active === false ? 0 : 1,
   };
 }
@@ -409,8 +452,8 @@ const dupMessage = (err) => (err.kind === 'unique_violation' || /UNIQUE/i.test(e
 router.post('/types', canManage, wrap(async (req, res) => {
   const t = readType(req.body);
   try {
-    const info = getDb().prepare('INSERT INTO EquipmentTypes (name, category, description, sizes, tracks_serial, min_stock, active) VALUES (?,?,?,?,?,?,?)')
-      .run(t.name, t.category, t.description, t.sizes, t.tracks_serial, t.min_stock, t.active);
+    const info = getDb().prepare('INSERT INTO EquipmentTypes (name, category, description, sizes, tracks_serial, tracks_stock, min_stock, active) VALUES (?,?,?,?,?,?,?,?)')
+      .run(t.name, t.category, t.description, t.sizes, t.tracks_serial, t.tracks_stock, t.min_stock, t.active);
     res.status(201).json({ id: Number(info.lastInsertRowid) });
   } catch (err) { throw dupMessage(err); }
 }));
@@ -418,14 +461,17 @@ router.post('/types', canManage, wrap(async (req, res) => {
 router.put('/types/:id', canManage, wrap(async (req, res) => {
   const id = idParam(req);
   const t = readType(req.body);
-  const cur = id && one('SELECT tracks_serial FROM EquipmentTypes WHERE id = ?', id);
+  const cur = id && one('SELECT tracks_serial, tracks_stock FROM EquipmentTypes WHERE id = ?', id);
   if (!cur) throw bad('غير موجود', 404);
+  if (!!cur.tracks_stock !== !!t.tracks_stock && one('SELECT 1 AS x FROM EquipmentInventory WHERE type_id = ?', id)) {
+    throw bad('لا يمكن تغيير تتبّع المخزون بعد تسجيل مخزون أو تسليم لهذا الغرض', 409);
+  }
   if (!!cur.tracks_serial !== !!t.tracks_serial && one('SELECT 1 AS x FROM EquipmentInventory WHERE type_id = ?', id)) {
     throw bad('لا يمكن تغيير طريقة التتبع بالرقم التسلسلي بعد إضافة مخزون لهذا الغرض', 409);
   }
   try {
-    getDb().prepare(`UPDATE EquipmentTypes SET name=?, category=?, description=?, sizes=?, tracks_serial=?, min_stock=?, active=?, updated_at=datetime('now') WHERE id=?`)
-      .run(t.name, t.category, t.description, t.sizes, t.tracks_serial, t.min_stock, t.active, id);
+    getDb().prepare(`UPDATE EquipmentTypes SET name=?, category=?, description=?, sizes=?, tracks_serial=?, tracks_stock=?, min_stock=?, active=?, updated_at=datetime('now') WHERE id=?`)
+      .run(t.name, t.category, t.description, t.sizes, t.tracks_serial, t.tracks_stock, t.min_stock, t.active, id);
   } catch (err) { throw dupMessage(err); }
   res.json({ ok: true });
 }));
@@ -448,7 +494,7 @@ router.get('/inventory', canView, wrap(async (req, res) => {
     SELECT i.*, t.name AS type_name, t.category, t.active AS type_active, t.tracks_serial,
       COALESCE((SELECT SUM(${OUTSTANDING}) FROM MemberEquipment c WHERE c.inventory_id = i.id), 0) AS with_members
     FROM EquipmentInventory i JOIN EquipmentTypes t ON t.id = i.type_id
-    ${typeId ? 'WHERE i.type_id = ?' : ''} ORDER BY t.name, i.size, i.serial_number`, ...(typeId ? [typeId] : []))
+    WHERE t.tracks_stock = 1 ${typeId ? 'AND i.type_id = ?' : ''} ORDER BY t.name, i.size, i.serial_number`, ...(typeId ? [typeId] : []))
     .map((r) => ({ ...r, type_active: !!r.type_active, tracks_serial: !!r.tracks_serial })));
 }));
 
@@ -460,6 +506,7 @@ router.post('/inventory', canManage, wrap(async (req, res) => {
   const id = inTransaction((db) => {
     const type = typeId && db.prepare('SELECT * FROM EquipmentTypes WHERE id = ?').get(typeId);
     if (!type) throw bad('اختر نوع الغرض', 404);
+    if (!type.tracks_stock) throw bad('هذا النوع لا يُتتبَّع مخزونه، يُسلَّم مباشرة بدون مخزون', 409);
     const sizes = parseSizes(type.sizes);
     const size = str(req.body.size, 30) || '';
     if (sizes.length && !sizes.includes(size)) throw bad('اختر مقاساً من المقاسات المتاحة لهذا الغرض');
@@ -593,7 +640,7 @@ router.get('/dashboard', canView, wrap(async (req, res) => {
     FROM MemberEquipment c JOIN TeamMembers m ON m.id = c.member_id
     WHERE m.member_status <> 'active' GROUP BY m.id HAVING SUM(${OUTSTANDING}) > 0 ORDER BY outstanding DESC`);
   const recent = all(`SELECT * FROM EquipmentTransactions WHERE kind IN ('issue','return','replace','damaged','lost') ORDER BY id DESC LIMIT 12`);
-  const lowStock = all(`SELECT * FROM (${typeStockSql}) WHERE active = 1 AND min_stock IS NOT NULL AND in_stock < min_stock ORDER BY name`)
+  const lowStock = all(`SELECT * FROM (${typeStockSql}) WHERE active = 1 AND tracks_stock = 1 AND min_stock IS NOT NULL AND in_stock < min_stock ORDER BY name`)
     .map(withSizes);
   res.json({ stats: s, alerts, recent, lowStock });
 }));
@@ -631,7 +678,7 @@ router.get('/reports/:kind', canView, wrap(async (req, res) => {
         SELECT i.id, t.name AS type_name, t.category, i.size, i.serial_number, i.in_stock, i.damaged,
           COALESCE((SELECT SUM(${OUTSTANDING}) FROM MemberEquipment c WHERE c.inventory_id = i.id), 0) AS with_members, t.min_stock
         FROM EquipmentInventory i JOIN EquipmentTypes t ON t.id = i.type_id
-        ${typeId ? 'WHERE i.type_id = ?' : ''} ORDER BY t.name, i.size, i.serial_number`, ...(typeId ? [typeId] : []));
+        WHERE t.tracks_stock = 1 ${typeId ? 'AND i.type_id = ?' : ''} ORDER BY t.name, i.size, i.serial_number`, ...(typeId ? [typeId] : []));
       return res.json({ rows });
     }
     case 'movements': {

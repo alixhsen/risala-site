@@ -6,12 +6,12 @@ import { useAdmin } from '../../../components/AdminLayout.jsx';
 import { useDialog } from '../../../components/admin/Dialog.jsx';
 import { AdminHead, FormSection, SaveBar } from '../../../components/admin/AdminPage.jsx';
 import { IconButton, EmptyPanel } from '../../../components/admin/DataPage.jsx';
-import { MemberPicker, CustodyAlert, StatusBadge, openVoucher } from '../../../components/admin/EquipmentParts.jsx';
+import { MemberPicker, CustodyAlert, StatusBadge, ItemPicker, itemSpec, openVoucher } from '../../../components/admin/EquipmentParts.jsx';
 import { api } from '../../../lib/api.js';
 import { isActiveMember, memberNo, MEMBER_STATUS } from '../../../lib/equipment.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
-const blankRow = () => ({ key: Math.random().toString(36).slice(2), type_id: '', inventory_id: '', quantity: 1 });
+const blankRow = () => ({ key: Math.random().toString(36).slice(2), type_id: '', inventory_id: '', size: '', serial_number: '', quantity: 1 });
 
 export default function EquipmentIssue() {
   const admin = useAdmin();
@@ -35,9 +35,8 @@ export default function EquipmentIssue() {
   const [fileBusy, setFileBusy] = useState('');
 
   const member = members.find((m) => m.id === memberId);
-  const issuable = useMemo(() => types.filter((t) => t.active && lines.some((l) => l.type_id === t.id && l.in_stock > 0)), [types, lines]);
+  const usable = useMemo(() => types.filter((t) => t.active), [types]);
   const setRow = (key, patch) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const linesOf = (typeId) => lines.filter((l) => l.type_id === Number(typeId) && l.in_stock > 0);
 
   // Stock still free after the other rows of this form took their share.
   const free = (row) => {
@@ -51,7 +50,7 @@ export default function EquipmentIssue() {
 
   // Back to wherever the form was opened from (or the section's home when it
   // was opened directly), asking first if something was already filled in.
-  const dirty = rows.some((r) => r.inventory_id) || notes.trim() !== '' || (memberId && !params.get('member'));
+  const dirty = rows.some((r) => r.type_id) || notes.trim() !== '' || (memberId && !params.get('member'));
   async function cancel() {
     if (dirty && !(await confirm('إلغاء هذه العملية؟ ستُفقد البيانات التي أدخلتها.', { title: 'إلغاء التسليم', confirmLabel: 'نعم، إلغاء', cancelLabel: 'متابعة التعبئة', danger: true }))) return;
     if (location.key === 'default') navigate('/admin/equipment', { replace: true });
@@ -63,13 +62,13 @@ export default function EquipmentIssue() {
     setError('');
     if (!memberId) return setError('اختر العضو أولاً');
     if (blocked) return setError(`لا يمكن تسليم عُهدة لعضو حالته «${MEMBER_STATUS[member.member_status]}»`);
-    const items = rows.filter((r) => r.inventory_id);
+    const items = rows.map((r) => itemSpec(r, types)).filter(Boolean);
     if (items.length === 0) return setError('اختر غرضاً واحداً على الأقل');
     setBusy(true);
     try {
       const res = await api('/admin/equipment/issues', {
         method: 'POST',
-        body: { member_id: memberId, issue_date: date, issuer_name: issuer, notes, items: items.map((r) => ({ inventory_id: Number(r.inventory_id), quantity: Number(r.quantity) })) },
+        body: { member_id: memberId, issue_date: date, issuer_name: issuer, notes, items: rows.map((r) => ({ spec: itemSpec(r, types), qty: Number(r.quantity) })).filter((x) => x.spec).map((x) => ({ ...x.spec, quantity: x.qty })) },
       });
       setDone({ id: res.id, member });
       reloadMembers(); reloadTypes(); reloadLines();
@@ -113,8 +112,7 @@ export default function EquipmentIssue() {
   return (
     <>
       <AdminHead kicker="العُهد والتجهيزات" title="تسليم عهدة جديدة" subtitle="اختر العضو من الأعضاء المسجّلين، ثم الأغراض والكميات والمقاسات." />
-      {types.length > 0 && issuable.length === 0 && <EmptyPanel title="لا أغراض متوفرة في المستودع" text="أضف مخزوناً من صفحة «أنواع التجهيزات والمخزون» قبل التسليم." />}
-      {types.length === 0 && <EmptyPanel title="لا أنواع تجهيزات بعد" text="أنشئ أنواع الأغراض أولاً من صفحة «أنواع التجهيزات والمخزون»." />}
+      {types.length === 0 && <EmptyPanel title="لا أنواع تجهيزات بعد" text="أنشئ أنواع الأغراض أولاً من صفحة «أنواع التجهيزات والمخزون»." action={<Link className="btn primary" to="/admin/equipment-types">إضافة نوع</Link>} />}
 
       <form className="drawer-form" onSubmit={submit}>
         <FormSection icon={PackagePlus} title="العضو" help="البحث في أعضاء الفريق المسجّلين، بلا إنشاء أعضاء مكرّرين.">
@@ -134,37 +132,12 @@ export default function EquipmentIssue() {
 
         <FormSection icon={PackagePlus} title="الأغراض" help="يمكن تسليم أكثر من غرض معاً، وتسليم الغرض نفسه لأكثر من عضو في عمليات منفصلة.">
           <div className="eq-rows">
-            {rows.map((row, i) => {
-              const options = row.type_id ? linesOf(row.type_id) : [];
-              const line = lines.find((l) => l.id === Number(row.inventory_id));
-              const max = free(row);
-              return (
-                <div className="eq-row" key={row.key}>
-                  <label className="field"><span>الغرض</span>
-                    <select value={row.type_id} onChange={(e) => {
-                      const opts = linesOf(e.target.value);
-                      setRow(row.key, { type_id: e.target.value, inventory_id: opts.length === 1 ? String(opts[0].id) : '', quantity: 1 });
-                    }}>
-                      <option value="">— اختر —</option>
-                      {issuable.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                  </label>
-                  <label className="field"><span>{types.find((t) => t.id === Number(row.type_id))?.tracks_serial ? 'الرقم التسلسلي' : 'المقاس'}</span>
-                    <select value={row.inventory_id} disabled={!row.type_id} onChange={(e) => setRow(row.key, { inventory_id: e.target.value, quantity: 1 })}>
-                      <option value="">— اختر —</option>
-                      {options.map((l) => (
-                        <option key={l.id} value={l.id}>{[l.serial_number && `رقم ${l.serial_number}`, l.size, `متوفر ${l.in_stock}`].filter(Boolean).join(' · ')}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="field"><span>الكمية{line && <small> (المتاح {max})</small>}</span>
-                    <input type="number" min="1" max={max || 1} required value={row.quantity} disabled={!line || line.serial_number} onChange={(e) => setRow(row.key, { quantity: e.target.value })} />
-                  </label>
-                  <IconButton icon={Trash2} label="حذف السطر" tone="danger" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((r) => r.key !== row.key))} />
-                 
-                </div>
-              );
-            })}
+            {rows.map((row) => (
+              <div className="eq-row" key={row.key}>
+                <ItemPicker types={usable} lines={lines} value={row} max={free(row)} onChange={(patch) => setRow(row.key, patch)} />
+                <IconButton icon={Trash2} label="حذف السطر" tone="danger" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((r) => r.key !== row.key))} />
+              </div>
+            ))}
           </div>
           <button type="button" className="btn" onClick={() => setRows((rs) => [...rs, blankRow()])}><Plus size={15} aria-hidden="true" /> إضافة غرض آخر</button>
         </FormSection>

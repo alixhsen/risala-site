@@ -66,8 +66,9 @@ independent of the member profile
   damaged / members holding items / items held by inactive members) and the
   latest deliveries and returns
 - Item types (uniform, helmet, radio, ID card…) with category, description,
-  sizes, optional serial numbers and a minimum stock — added from the admin
-  page, never in code — plus warehouse stock per size or serial number
+  sizes and optional serial numbers — added from the admin page, never in
+  code. Warehouse stock tracking (quantities, minimum stock) is optional per
+  type: types without it are issued directly, no stock needed
 - Deliver one or many items to a member (search the existing roster), partial
   returns, replacements, and documented loss/damage — all in database
   transactions, so stock can never be over-issued

@@ -8,7 +8,7 @@ import { StatTiles, FilterBar, IconButton, EmptyPanel } from '../../../component
 import { Modal, useEqAccess } from '../../../components/admin/EquipmentParts.jsx';
 import { api } from '../../../lib/api.js';
 
-const EMPTY = { name: '', category: '', description: '', sizes: '', tracks_serial: false, min_stock: '', active: true };
+const EMPTY = { name: '', category: '', description: '', sizes: '', tracks_serial: false, tracks_stock: false, min_stock: '', active: true };
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function EquipmentTypes() {
@@ -35,7 +35,7 @@ export default function EquipmentTypes() {
     types: types.length,
     stock: types.reduce((n, t) => n + t.in_stock, 0),
     out: types.reduce((n, t) => n + t.with_members, 0),
-    low: types.filter((t) => t.active && t.min_stock !== null && t.in_stock < t.min_stock).length,
+    low: types.filter((t) => t.active && t.tracks_stock && t.min_stock !== null && t.in_stock < t.min_stock).length,
   }), [types]);
   const refresh = () => { reload(); reloadLines(); };
 
@@ -45,7 +45,11 @@ export default function EquipmentTypes() {
     try {
       const body = { ...form, sizes: form.sizes };
       if (form.id) await api(`/admin/equipment/types/${form.id}`, { method: 'PUT', body });
-      else await api('/admin/equipment/types', { method: 'POST', body });
+      else {
+        // A new type has no stock yet: open its stock panel so it can be added right away.
+        const res = await api('/admin/equipment/types', { method: 'POST', body });
+        if (form.tracks_stock) setOpenType(res.id);
+      }
       setForm(null); refresh();
     } catch (err) { setFormError(err.message); } finally { setBusy(false); }
   }
@@ -66,12 +70,12 @@ export default function EquipmentTypes() {
   return (
     <>
       <AdminHead kicker="العُهد والتجهيزات" title="أنواع التجهيزات والمخزون"
-        subtitle="عرّف أي نوع من الأغراض (بدلة، خوذة، لاسلكي…) وأضف مخزونه بمقاساته أو أرقامه التسلسلية. الأنواع الجديدة لا تحتاج تعديلاً في الكود."
+        subtitle="عرّف أي نوع من الأغراض (بدلة، خوذة، لاسلكي…) بمقاساته ورقمه التسلسلي. تتبّع المخزون اختياري: فعّله فقط للأغراض التي تُسلَّم من مستودع عندكم."
         actions={canManage && <button type="button" className="btn primary" onClick={() => { setFormError(''); setForm(EMPTY); }}><Plus size={16} aria-hidden="true" /> نوع جديد</button>} />
 
       <StatTiles items={[
         { label: 'أنواع الأغراض', value: totals.types, tone: 'brand' },
-        { label: 'متوفر في المستودع', value: totals.stock, tone: 'ok' },
+        { label: 'متوفر في المستودع', value: totals.stock, sub: 'للأنواع ذات المخزون', tone: 'ok' },
         { label: 'بحوزة الأعضاء', value: totals.out, tone: 'warn' },
         { label: 'تحت الحد الأدنى', value: totals.low, tone: totals.low ? 'danger' : 'ok' },
       ]} />
@@ -96,10 +100,13 @@ export default function EquipmentTypes() {
               <label className="field"><span>المقاسات المتاحة (افصل بفاصلة، اتركها فارغة إن لم يوجد)</span>
                 <input placeholder="S, M, L, XL" value={form.sizes} onChange={(e) => set({ sizes: e.target.value })} />
               </label>
-              <label className="field"><span>الحد الأدنى للمخزون (اختياري)</span>
-                <input type="number" min="0" value={form.min_stock ?? ''} onChange={(e) => set({ min_stock: e.target.value })} />
-              </label>
+              {form.tracks_stock && (
+                <label className="field"><span>الحد الأدنى للمخزون (اختياري)</span>
+                  <input type="number" min="0" value={form.min_stock ?? ''} onChange={(e) => set({ min_stock: e.target.value })} />
+                </label>
+              )}
             </div>
+            <label className="check"><input type="checkbox" checked={!!form.tracks_stock} disabled={!!form.id && form.in_stock + form.damaged + form.with_members > 0} onChange={(e) => set({ tracks_stock: e.target.checked })} /> تتبّع مخزون في المستودع (كميات متوفرة وحد أدنى). اتركه بدون تحديد إن كانت الأغراض لا تُسلَّم من مخزون عندكم.</label>
             <label className="check"><input type="checkbox" checked={!!form.tracks_serial} onChange={(e) => set({ tracks_serial: e.target.checked })} /> لكل قطعة رقم تسلسلي أو رقم تعريف (مثل اللاسلكي وبطاقة التعريف)</label>
             <label className="check"><input type="checkbox" checked={!!form.active} onChange={(e) => set({ active: e.target.checked })} /> مفعّل (يظهر في التسليم)</label>
             {formError && <p className="error" role="alert">{formError}</p>}
@@ -116,7 +123,7 @@ export default function EquipmentTypes() {
 
       <div className="eq-cards">
         {rows.map((t) => {
-          const low = t.active && t.min_stock !== null && t.in_stock < t.min_stock;
+          const low = t.active && t.tracks_stock && t.min_stock !== null && t.in_stock < t.min_stock;
           const isOpen = openType === t.id;
           return (
             <article key={t.id} className={`eq-card ${t.active ? '' : 'is-off'}`}>
@@ -132,17 +139,25 @@ export default function EquipmentTypes() {
                   </span>
                 )}
               </header>
-              <dl className="eq-card-stats">
-                <div><dt>متوفر</dt><dd className={low ? 'bad' : ''}>{t.in_stock}</dd></div>
-                <div><dt>بحوزة الأعضاء</dt><dd>{t.with_members}</dd></div>
-                <div><dt>تالف / صيانة</dt><dd>{t.damaged}</dd></div>
-                <div><dt>الحد الأدنى</dt><dd>{t.min_stock ?? '—'}</dd></div>
-              </dl>
+              {t.tracks_stock ? (
+                <dl className="eq-card-stats">
+                  <div><dt>متوفر</dt><dd className={low ? 'bad' : ''}>{t.in_stock}</dd></div>
+                  <div><dt>بحوزة الأعضاء</dt><dd>{t.with_members}</dd></div>
+                  <div><dt>تالف / صيانة</dt><dd>{t.damaged}</dd></div>
+                  <div><dt>الحد الأدنى</dt><dd>{t.min_stock ?? '—'}</dd></div>
+                </dl>
+              ) : (
+                <dl className="eq-card-stats eq-card-stats-1">
+                  <div><dt>بحوزة الأعضاء</dt><dd>{t.with_members}</dd></div>
+                </dl>
+              )}
               {low && <p className="eq-low">تحت الحد الأدنى للمخزون</p>}
+              {t.active && t.tracks_stock && t.in_stock + t.damaged + t.with_members === 0 && <p className="eq-low">لا مخزون لهذا النوع بعد، لن يظهر في التسليم حتى تضيف كمية من «المخزون».</p>}
               {t.sizes.length > 0 && <p className="hint">المقاسات: {t.sizes.join(' · ')}</p>}
-              <button type="button" className="btn" onClick={() => setOpenType(isOpen ? null : t.id)}><Warehouse size={15} aria-hidden="true" /> {isOpen ? 'إخفاء المخزون' : 'المخزون'}</button>
+              {t.tracks_stock && <button type="button" className="btn" onClick={() => setOpenType(isOpen ? null : t.id)}><Warehouse size={15} aria-hidden="true" /> {isOpen ? 'إخفاء المخزون' : 'المخزون'}</button>}
+              {!t.tracks_stock && <p className="hint">بدون مخزون: يُسلَّم مباشرة للأعضاء من صفحة التسليم.</p>}
 
-              {isOpen && (
+              {t.tracks_stock && isOpen && (
                 <div className="eq-stock">
                   {canManage && <button type="button" className="btn primary" onClick={() => setStockForm({ type: t, size: t.sizes[0] || '', serial_number: '', quantity: 1 })}><Plus size={15} aria-hidden="true" /> إضافة مخزون</button>}
                   {typeLines(t.id).length === 0 && <p className="hint">لا مخزون مسجّل لهذا النوع بعد.</p>}

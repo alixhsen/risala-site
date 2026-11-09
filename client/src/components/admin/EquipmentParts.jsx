@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Search, X } from 'lucide-react';
 import { api } from '../../lib/api.js';
-import { MEMBER_STATUS, isActiveMember, alertText } from '../../lib/equipment.js';
+import { MEMBER_STATUS, isActiveMember, alertText, memberNo } from '../../lib/equipment.js';
 
 export function StatusBadge({ status }) {
   const active = isActiveMember(status);
@@ -25,6 +25,7 @@ export function CustodyAlert({ status, outstanding }) {
 export function MemberPicker({ members, value, onChange, placeholder = 'ابحث بالاسم أو رقم الهاتف أو رقم العضو…', allowInactive = true }) {
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const box = useRef(null);
   const selected = members.find((m) => m.id === value);
 
@@ -42,6 +43,14 @@ export function MemberPicker({ members, value, onChange, placeholder = 'ابحث
       .slice(0, 40);
   }, [members, text, allowInactive]);
 
+  const pick = (m) => { onChange(m.id); setOpen(false); setText(''); };
+  const onKeyDown = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActive((i) => Math.min(i + 1, matches.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' && open && matches[active]) { e.preventDefault(); pick(matches[active]); }
+    else if (e.key === 'Escape') setOpen(false);
+  };
+
   if (selected && !open) {
     return (
       <div className="eq-picked">
@@ -57,15 +66,18 @@ export function MemberPicker({ members, value, onChange, placeholder = 'ابحث
     <div className="eq-picker" ref={box}>
       <label className="filter-search">
         <Search size={16} aria-hidden="true" />
-        <input type="search" value={text} placeholder={placeholder} aria-label="بحث عن عضو" onFocus={() => setOpen(true)} onChange={(e) => { setText(e.target.value); setOpen(true); }} />
+        <input type="search" value={text} placeholder={placeholder} aria-label="بحث عن عضو" onFocus={() => setOpen(true)} onKeyDown={onKeyDown} onChange={(e) => { setText(e.target.value); setActive(0); setOpen(true); }} />
       </label>
       {open && (
         <ul className="eq-picker-list" role="listbox">
-          {matches.length === 0 && <li className="eq-picker-empty">لا نتائج</li>}
-          {matches.map((m) => (
+          <li className="eq-picker-count" aria-hidden="true">{matches.length === 0 ? 'لا نتائج مطابقة' : `${matches.length} ${matches.length === 1 ? 'نتيجة' : 'نتائج'}${matches.length === 40 ? ' (الأولى — ضيّق البحث)' : ''}`}</li>
+          {matches.map((m, i) => (
             <li key={m.id}>
-              <button type="button" role="option" aria-selected={m.id === value} onClick={() => { onChange(m.id); setOpen(false); setText(''); }}>
-                <span><strong>{m.name}</strong>{m.phone && <small><bdi dir="ltr">{m.phone}</bdi></small>}</span>
+              <button type="button" role="option" aria-selected={i === active} className={i === active ? 'on' : ''} onMouseEnter={() => setActive(i)} onClick={() => pick(m)}>
+                <span className="eq-picker-main">
+                  <strong>{m.name}</strong>
+                  <small>{memberNo(m.id)}{m.phone && <> · <bdi dir="ltr">{m.phone}</bdi></>}{m.group_name && ` · ${m.group_name}`}</small>
+                </span>
                 <span className="eq-picker-meta">
                   {m.outstanding > 0 && <em>{m.outstanding} بحوزته</em>}
                   {!isActiveMember(m.member_status) && <StatusBadge status={m.member_status} />}

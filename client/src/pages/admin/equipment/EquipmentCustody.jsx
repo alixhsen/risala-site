@@ -6,9 +6,9 @@ import { useAdmin } from '../../../components/AdminLayout.jsx';
 import { useDialog } from '../../../components/admin/Dialog.jsx';
 import { AdminHead } from '../../../components/admin/AdminPage.jsx';
 import { FilterBar, ChipFilter, EmptyPanel, IconButton } from '../../../components/admin/DataPage.jsx';
-import { StatusBadge, CustodyAlert, Modal, openVoucher, useEqAccess } from '../../../components/admin/EquipmentParts.jsx';
+import { StatusBadge, CustodyAlert, Modal, ItemPicker, itemSpec, openVoucher, useEqAccess } from '../../../components/admin/EquipmentParts.jsx';
 import { api, formatDate } from '../../../lib/api.js';
-import { isActiveMember, memberNo, stockLabel, CONDITION_LABELS } from '../../../lib/equipment.js';
+import { isActiveMember, memberNo, CONDITION_LABELS } from '../../../lib/equipment.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const lineText = (c) => [c.type_name, c.size, c.serial_number && `رقم ${c.serial_number}`].filter(Boolean).join(' · ');
@@ -268,21 +268,24 @@ function LossModal({ line, user, onClose, onDone }) {
 
 function ReplaceModal({ line, user, onClose, onDone }) {
   const { data: lines } = useLoad('/admin/equipment/inventory', []);
+  const { data: types } = useLoad('/admin/equipment/types', []);
+  const [item, setItem] = useState({ type_id: '', inventory_id: '', size: '', serial_number: '', quantity: 1 });
   const [oldCondition, setOldCondition] = useState('damaged');
-  const [newInv, setNewInv] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [date, setDate] = useState(today());
   const [person, setPerson] = useState(user.display_name || '');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const options = lines.filter((l) => l.type_active && l.in_stock > 0);
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setError('');
     try {
+      const spec = itemSpec(item, types);
+      if (!spec) throw new Error('اختر الغرض الجديد');
       const res = await api(`/admin/equipment/custody/${line.id}/replace`, {
-        method: 'POST', body: { old_condition: oldCondition, new_inventory_id: Number(newInv), quantity: Number(quantity), date, person, notes },
+        method: 'POST',
+        body: { old_condition: oldCondition, new_inventory_id: spec.inventory_id, new_type_id: spec.type_id, new_size: spec.size, new_serial_number: spec.serial_number, quantity: Number(quantity), date, person, notes },
       });
       onDone(res.issue_id);
     } catch (err) { setError(err.message); } finally { setBusy(false); }
@@ -300,12 +303,10 @@ function ReplaceModal({ line, user, onClose, onDone }) {
             <input type="number" min="1" max={line.outstanding} required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
           </label>
         </div>
-        <label className="field"><span>الغرض الجديد من المستودع</span>
-          <select required value={newInv} onChange={(e) => setNewInv(e.target.value)}>
-            <option value="">— اختر —</option>
-            {options.map((l) => <option key={l.id} value={l.id}>{stockLabel(l)} — متوفر {l.in_stock}</option>)}
-          </select>
-        </label>
+        <p className="hint">الغرض الجديد (الكمية المسلَّمة = الكمية أعلاه):</p>
+        <div className="eq-row eq-row-modal">
+          <ItemPicker types={types} lines={lines} value={{ ...item, quantity }} max={Math.max(0, (lines.find((l) => l.id === Number(item.inventory_id))?.in_stock) || 0)} onChange={(patch) => { const { quantity: q, ...rest } = patch; if (q !== undefined) setQuantity(q); setItem((v) => ({ ...v, ...rest })); }} />
+        </div>
         <div className="field-row">
           <label className="field"><span>التاريخ</span><input type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></label>
           <label className="field"><span>المسؤول</span><input required maxLength={120} value={person} onChange={(e) => setPerson(e.target.value)} /></label>

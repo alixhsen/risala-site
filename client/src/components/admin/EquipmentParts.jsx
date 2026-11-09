@@ -126,3 +126,71 @@ export const useEqAccess = (admin) => ({
   canHandle: admin.isAdmin || admin.permissions.includes('equipment-handle'),
   canManage: admin.isAdmin || admin.permissions.includes('equipment-types'),
 });
+
+// One item line: type -> size / serial -> quantity. Types with stock tracking
+// are picked from the warehouse (their lines carry the available quantity);
+// untracked types are issued directly, so size and serial are simply chosen
+// or typed. `value` = { type_id, inventory_id, size, serial_number, quantity }.
+export function ItemPicker({ types, lines, value, onChange, max }) {
+  const type = types.find((t) => t.id === Number(value.type_id));
+  const stocked = (t) => lines.some((l) => l.type_id === t.id && l.in_stock > 0);
+  const tracked = type?.tracks_stock;
+  const options = tracked ? lines.filter((l) => l.type_id === type.id && l.in_stock > 0) : [];
+  const line = tracked ? lines.find((l) => l.id === Number(value.inventory_id)) : null;
+  const single = type && type.tracks_serial; // one unit per serial number
+  const limit = tracked ? (line ? max : 0) : (single ? 1 : undefined);
+
+  const pickType = (id) => {
+    const t = types.find((x) => x.id === Number(id));
+    const opts = t?.tracks_stock ? lines.filter((l) => l.type_id === t.id && l.in_stock > 0) : [];
+    onChange({ type_id: id, inventory_id: opts.length === 1 ? String(opts[0].id) : '', size: '', serial_number: '', quantity: 1 });
+  };
+
+  return (
+    <>
+      <label className="field"><span>الغرض</span>
+        <select value={value.type_id} onChange={(e) => pickType(e.target.value)}>
+          <option value="">— اختر —</option>
+          {types.filter((t) => t.active).map((t) => {
+            const ok = !t.tracks_stock || stocked(t);
+            return <option key={t.id} value={t.id} disabled={!ok}>{t.name}{ok ? '' : ' — لا مخزون'}</option>;
+          })}
+        </select>
+      </label>
+      <div className="field">
+        <span>{type?.tracks_serial ? 'الرقم التسلسلي' : 'المقاس'}</span>
+        {!type && <select disabled><option>— اختر الغرض أولاً —</option></select>}
+        {tracked && (
+          <select value={value.inventory_id} onChange={(e) => onChange({ inventory_id: e.target.value, quantity: 1 })}>
+            <option value="">— اختر —</option>
+            {options.map((l) => <option key={l.id} value={l.id}>{[l.serial_number && `رقم ${l.serial_number}`, l.size, `متوفر ${l.in_stock}`].filter(Boolean).join(' · ')}</option>)}
+          </select>
+        )}
+        {type && !tracked && (
+          <div className="eq-direct">
+            {type.sizes.length > 0 && (
+              <select value={value.size} onChange={(e) => onChange({ size: e.target.value })} aria-label="المقاس">
+                <option value="">— المقاس —</option>
+                {type.sizes.map((sz) => <option key={sz} value={sz}>{sz}</option>)}
+              </select>
+            )}
+            {type.tracks_serial && <input dir="ltr" maxLength={80} placeholder="الرقم التسلسلي" aria-label="الرقم التسلسلي" value={value.serial_number} onChange={(e) => onChange({ serial_number: e.target.value })} />}
+            {type.sizes.length === 0 && !type.tracks_serial && <input disabled value="لا مقاس ولا رقم" aria-label="لا مقاس" />}
+          </div>
+        )}
+      </div>
+      <label className="field"><span>الكمية{tracked && line && <small> (المتاح {max})</small>}</span>
+        <input type="number" min="1" max={limit || undefined} required value={value.quantity} disabled={!type || (tracked && !line) || single}
+          onChange={(e) => onChange({ quantity: e.target.value })} />
+      </label>
+    </>
+  );
+}
+
+// What the API expects for a picked item.
+export const itemSpec = (v, types) => {
+  const t = types.find((x) => x.id === Number(v.type_id));
+  if (!t) return null;
+  if (t.tracks_stock) return v.inventory_id ? { inventory_id: Number(v.inventory_id) } : null;
+  return { type_id: t.id, size: v.size, serial_number: v.serial_number };
+};

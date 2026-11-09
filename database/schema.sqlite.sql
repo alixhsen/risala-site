@@ -321,6 +321,8 @@ CREATE TABLE IF NOT EXISTS CommunityDonations (
 
 -- What kinds of item exist. Fully data-driven: new types are added from the
 -- admin page, never in code. `sizes` is a JSON array of the available sizes.
+-- tracks_stock = 0: items are not issued from a warehouse (no stock counts);
+-- custody is just recorded against the member.
 CREATE TABLE IF NOT EXISTS EquipmentTypes (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT NOT NULL UNIQUE,
@@ -328,6 +330,7 @@ CREATE TABLE IF NOT EXISTS EquipmentTypes (
   description   TEXT,
   sizes         TEXT,
   tracks_serial INTEGER NOT NULL DEFAULT 0,
+  tracks_stock  INTEGER NOT NULL DEFAULT 1,
   min_stock     INTEGER CHECK (min_stock IS NULL OR min_stock >= 0),
   active        INTEGER NOT NULL DEFAULT 1,
   created_at    TEXT NOT NULL DEFAULT (datetime('now')),

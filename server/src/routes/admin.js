@@ -94,6 +94,9 @@ router.use('/blood-donors', requireModule('blood-donations'));
 router.use('/donation-item-types', requireModule(['community-donations', 'donation-item-types']));
 router.use('/community-donations', requireModule('community-donations'));
 router.use('/document-templates', requireModule('documents'));
+// Equipment & custody: access is checked per endpoint inside the router
+// (view / handle / manage), so it is mounted without a blanket gate.
+router.use('/equipment', require('./equipment'));
 
 // ---------- dashboard ----------
 router.get('/stats', wrap(async (req, res) => {
@@ -361,6 +364,7 @@ const readMemberFields = (b) => ({
   region: str(b.region, 120),
   town: str(b.town, 120),
   notes: str(b.notes, 1000),
+  member_status: ['active', 'suspended', 'withdrawn', 'dismissed', 'inactive'].includes(b.member_status) ? b.member_status : 'active',
   has_license: b.has_license ? 1 : 0,
   license_number: str(b.license_number, 50),
   license_front_url: uploadUrl(b.license_front_url),
@@ -370,11 +374,11 @@ const readMemberFields = (b) => ({
 const MEMBER_COLUMNS = `name, first_name, family_name, role_title, group_name, photo_url, sort_order, visible,
   father_name, mother_name, nickname, birth_date, birth_place, blood_type, registry_no,
   education, phone, address, joined_on, scout_unit, district, region, town, notes,
-  has_license, license_number, license_front_url, license_back_url`;
+  has_license, license_number, license_front_url, license_back_url, member_status`;
 const MEMBER_PARAMS = `@name, @first_name, @family_name, @role_title, @group_name, @photo_url, @sort_order, @visible,
   @father_name, @mother_name, @nickname, @birth_date, @birth_place, @blood_type, @registry_no,
   @education, @phone, @address, @joined_on, @scout_unit, @district, @region, @town, @notes,
-  @has_license, @license_number, @license_front_url, @license_back_url`;
+  @has_license, @license_number, @license_front_url, @license_back_url, @member_status`;
 
 router.get('/team', wrap(async (req, res) => {
   res.json(await query('SELECT * FROM dbo.TeamMembers ORDER BY sort_order, id'));
@@ -476,7 +480,17 @@ router.put('/team/:id', adminOnly, wrap(async (req, res) => {
 
 router.delete('/team/:id', adminOnly, wrap(async (req, res) => {
   const id = idParam(req);
-  if (id) await query('DELETE FROM dbo.TeamMembers WHERE id = @id', { id });
+  if (id) {
+    try {
+      await query('DELETE FROM dbo.TeamMembers WHERE id = @id', { id });
+    } catch (err) {
+      // Custody history (العُهد) keeps pointing at the member, so deleting would erase the audit trail.
+      if (err.kind === 'fk_violation') {
+        return res.status(409).json({ error: 'لا يمكن حذف عضو لديه سجل عُهد، غيّر حالته إلى «متوقف» أو «مفصول» بدلاً من حذفه' });
+      }
+      throw err;
+    }
+  }
   res.json({ ok: true });
 }));
 
@@ -555,6 +569,7 @@ const MODULE_KEYS = [
   'ambulance-finance', 'ambulance-categories', 'ambulance-assets',
   'blood-donations', 'community-donations', 'donation-item-types',
   'documents',
+  'equipment', 'equipment-handle', 'equipment-types',
 ];
 const readPermissions = (body) => (
   Array.isArray(body.permissions) ? JSON.stringify(body.permissions.filter((k) => MODULE_KEYS.includes(k))) : null

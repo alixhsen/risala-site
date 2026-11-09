@@ -36,6 +36,11 @@ const PAGE_GROUPS = [
     ['loaned-items', 'العُهد'],
     ['inventory-report', 'تقرير المخزون'],
   ]],
+  ['العُهد والتجهيزات', [
+    ['equipment', 'عرض العُهد والتقارير (قراءة فقط)'],
+    ['equipment-handle', 'مسؤول مخوّل: تسليم واسترجاع وتبديل'],
+    ['equipment-types', 'أنواع التجهيزات والمخزون'],
+  ]],
   ['سيارة الإسعاف', [
     ['ambulance-finance', 'الإيرادات والمصروفات'],
     ['ambulance-categories', 'فئات مالية السيارة'],

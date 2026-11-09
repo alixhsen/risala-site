@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
-import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange, FileSignature, HeartPulse } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, Siren, Image, Users, Package, ClipboardList, HandCoins, Stethoscope, Activity, MessagesSquare, Settings, UserCog, LogOut, ExternalLink, Menu, X, WandSparkles, UserRound, Ruler, Tags, Wrench, Wallet, Truck, Clock, Droplet, Gift, CalendarRange, FileSignature, HeartPulse, ShieldCheck, PackagePlus, Boxes, ScrollText, FileBarChart, UsersRound } from 'lucide-react';
 import { api, logout } from '../lib/api.js';
 import { useSettings } from '../App.jsx';
 import { LOGO } from '../lib/brand.js';
@@ -12,6 +12,8 @@ import { LOGO } from '../lib/brand.js';
 // (the dashboard) is always visible to any logged-in user. pageKey matches
 // the path's last segment, and must stay in sync with PAGE_GROUPS in
 // Users.jsx and the route gating in server/src/routes/admin.js.
+// Any equipment permission opens the read-only pages of that section.
+const EQ_VIEW = ['equipment', 'equipment-handle', 'equipment-types'];
 const GROUPS = [
   { title: 'الرئيسية', items: [
     ['/admin', 'نظرة عامة', LayoutDashboard, false, null],
@@ -43,6 +45,14 @@ const GROUPS = [
     ['/admin/inventory-usage', 'سجلّ الاستخدام', ClipboardList, false, 'inventory-usage'],
     ['/admin/loaned-items', 'العُهد', HandCoins, false, 'loaned-items'],
     ['/admin/inventory-report', 'تقرير المخزون', BarChart3, false, 'inventory-report'],
+  ] },
+  { title: 'العُهد والتجهيزات', items: [
+    ['/admin/equipment', 'لوحة العُهد', ShieldCheck, false, EQ_VIEW],
+    ['/admin/equipment-custody', 'عُهد الأعضاء', UsersRound, false, EQ_VIEW],
+    ['/admin/equipment-issue', 'تسليم عهدة جديدة', PackagePlus, false, 'equipment-handle'],
+    ['/admin/equipment-types', 'أنواع التجهيزات والمخزون', Boxes, false, 'equipment-types'],
+    ['/admin/equipment-log', 'سجل الحركات', ScrollText, false, EQ_VIEW],
+    ['/admin/equipment-reports', 'تقارير العُهد', FileBarChart, false, EQ_VIEW],
   ] },
   { title: 'سيارة الإسعاف', items: [
     ['/admin/ambulance-finance', 'الإيرادات والمصروفات', Wallet, false, 'ambulance-finance'],
@@ -85,7 +95,8 @@ export default function AdminLayout() {
   if (!user) return <div className="admin-loading"><span className="loader" /> جارٍ التحميل…</div>;
   const isAdmin = user.role === 'admin';
   const permissions = Array.isArray(user.permissions) ? user.permissions : [];
-  const canSee = ([, , , adminOnly, pageKey]) => isAdmin || (!adminOnly && (!pageKey || permissions.includes(pageKey)));
+  const canSee = ([, , , adminOnly, pageKey]) => isAdmin || (!adminOnly && (!pageKey
+    || (Array.isArray(pageKey) ? pageKey.some((k) => permissions.includes(k)) : permissions.includes(pageKey))));
   const title = TITLES[location.pathname]
     || (location.pathname.startsWith('/admin/posts/') ? 'تحرير منشور'
       : location.pathname.startsWith('/admin/documents/') ? 'تعبئة نموذج'

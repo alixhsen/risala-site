@@ -202,6 +202,8 @@ function migrateColumns(db) {
   addColumnIfMissing(db, 'BloodDonors', 'discarded', 'discarded INTEGER NOT NULL DEFAULT 0');
   addColumnIfMissing(db, 'ServiceLogs', 'title', 'title TEXT');
   addColumnIfMissing(db, 'ServiceLogs', 'cover_url', 'cover_url TEXT');
+  addColumnIfMissing(db, 'TeamMembers', 'member_status',
+    "member_status TEXT NOT NULL DEFAULT 'active' CHECK (member_status IN ('active','suspended','withdrawn','dismissed','inactive'))");
 }
 
 // ServiceLogs.team_member_id (single, nullable) became ServiceLogMembers

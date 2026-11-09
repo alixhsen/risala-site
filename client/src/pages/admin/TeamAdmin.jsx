@@ -9,6 +9,7 @@ import { AdminHead, FormSection, SaveBar } from '../../components/admin/AdminPag
 import { StatTiles, FilterBar, IconButton, EmptyPanel, Thumb } from '../../components/admin/DataPage.jsx';
 import { api, formatDate, MONTHS_AR } from '../../lib/api.js';
 
+const STATUS_LABEL = { suspended: 'متوقف عن الخدمة', withdrawn: 'منسحب', dismissed: 'مفصول من الفرقة', inactive: 'غير فعّال' };
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const EMPTY = {
   first_name: '', family_name: '', role_title: '', group_name: '', photo_url: '', sort_order: 0, visible: true,
@@ -16,6 +17,7 @@ const EMPTY = {
   registry_no: '', education: '', phone: '', address: '', joined_on: '', scout_unit: '',
   district: '', region: '', town: '', notes: '',
   has_license: false, license_number: '', license_front_url: '', license_back_url: '',
+  member_status: 'active',
 };
 
 // Dates come back as ISO timestamps; the form and the age maths want YYYY-MM-DD.
@@ -259,6 +261,16 @@ export default function TeamAdmin() {
             </div>
             <ImageInput label="الصورة" value={form.photo_url || ''} onChange={(url) => set({ photo_url: url })} />
             <label className="check"><input type="checkbox" checked={!!form.visible} onChange={(e) => set({ visible: e.target.checked })} /> ظاهر على الموقع</label>
+            <label className="field"><span>حالة العضو</span>
+              <select value={form.member_status || 'active'} onChange={(e) => set({ member_status: e.target.value })}>
+                <option value="active">فعّال</option>
+                <option value="suspended">متوقف عن الخدمة</option>
+                <option value="withdrawn">منسحب</option>
+                <option value="dismissed">مفصول من الفرقة</option>
+                <option value="inactive">غير فعّال</option>
+              </select>
+              <small className="hint">عند تغيير الحالة تظهر تنبيهات العُهد غير المستردة في قسم «العُهد والتجهيزات».</small>
+            </label>
           </FormSection>
 
           <FormSection icon={IdCard} title="بيانات الهوية" help="تُستخدم في السجل والتقارير الفردية.">
@@ -360,7 +372,7 @@ export default function TeamAdmin() {
               {rows.map((m) => (
                 <tr key={m.id} className={m.id === viewId ? 'is-selected' : ''}>
                   <td><Thumb src={m.photo_url} alt={m.name} /></td>
-                  <td><strong>{m.name}</strong>{m.role_title && <small className="cell-note">{m.role_title}</small>}</td>
+                  <td><strong>{m.name}</strong>{m.role_title && <small className="cell-note">{m.role_title}</small>}{m.member_status && m.member_status !== 'active' && <small className="cell-note">{STATUS_LABEL[m.member_status]}</small>}</td>
                   <td>{m.age !== null ? `${m.age} سنة` : '—'}</td>
                   <td>{m.blood_type ? <strong>{m.blood_type}</strong> : '—'}</td>
                   <td>{m.group_name || '—'}</td>

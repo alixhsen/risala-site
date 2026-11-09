@@ -47,6 +47,12 @@ import Generator from './pages/admin/Generator.jsx';
 import Messages from './pages/admin/Messages.jsx';
 import Settings from './pages/admin/Settings.jsx';
 import Users from './pages/admin/Users.jsx';
+import EquipmentDashboard from './pages/admin/equipment/EquipmentDashboard.jsx';
+import EquipmentCustody from './pages/admin/equipment/EquipmentCustody.jsx';
+import EquipmentIssue from './pages/admin/equipment/EquipmentIssue.jsx';
+import EquipmentTypes from './pages/admin/equipment/EquipmentTypes.jsx';
+import EquipmentLog from './pages/admin/equipment/EquipmentLog.jsx';
+import EquipmentReports from './pages/admin/equipment/EquipmentReports.jsx';
 
 // Site-wide settings (name, logo, phone…) loaded once and shared everywhere.
 const SettingsContext = createContext({ settings: {}, reload: () => {} });
@@ -56,6 +62,7 @@ export const useSettings = () => useContext(SettingsContext);
 export function useLoad(path, fallback) {
   const [state, setState] = useState({ data: fallback, error: '', loading: true });
   const reload = useCallback(() => {
+    if (!path) { setState({ data: fallback, error: '', loading: false }); return; }
     api(path)
       .then((data) => setState({ data, error: '', loading: false }))
       .catch((err) => setState((s) => ({ ...s, error: err.message, loading: false })));
@@ -118,6 +125,12 @@ export default function App() {
           <Route path="donation-item-types" element={<DonationItemTypesAdmin />} />
           <Route path="documents" element={<DocumentsAdmin />} />
           <Route path="documents/fill/:templateId" element={<DocumentFill />} />
+          <Route path="equipment" element={<EquipmentDashboard />} />
+          <Route path="equipment-custody" element={<EquipmentCustody />} />
+          <Route path="equipment-issue" element={<EquipmentIssue />} />
+          <Route path="equipment-types" element={<EquipmentTypes />} />
+          <Route path="equipment-log" element={<EquipmentLog />} />
+          <Route path="equipment-reports" element={<EquipmentReports />} />
           <Route path="team" element={<TeamAdmin />} />
           <Route path="gallery" element={<GalleryAdmin />} />
           <Route path="generator" element={<Generator />} />
